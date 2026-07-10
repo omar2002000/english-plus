@@ -517,18 +517,29 @@ export function StudentProfile() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 w-full mt-4">
+            <div className="grid grid-cols-3 gap-2 w-full mt-4">
               <button
                 onClick={downloadCard}
-                className="py-2.5 rounded-xl bg-violet-600 text-white text-sm font-bold flex items-center justify-center gap-2"
+                className="py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold flex items-center justify-center gap-1"
               >
-                <FileDown className="w-4 h-4" /> تحميل PDF
+                <FileDown className="w-4 h-4" /> PDF
+              </button>
+              <button
+                onClick={async () => {
+                  // v5: Send card as PNG image via WhatsApp
+                  const { shareStudentCardViaWhatsApp } = await import('@/lib/documents');
+                  await shareStudentCardViaWhatsApp(student, group, settings);
+                  toast.success('تم إرسال البطاقة كصورة');
+                }}
+                className="py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1"
+              >
+                <MessageCircle className="w-4 h-4" /> بطاقة صورة
               </button>
               <button
                 onClick={() => sendTemplate('welcome')}
-                className="py-2.5 rounded-xl bg-green-600 text-white text-sm font-bold flex items-center justify-center gap-2"
+                className="py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1"
               >
-                <MessageCircle className="w-4 h-4" /> مشاركة واتساب
+                <MessageCircle className="w-4 h-4" /> رسالة
               </button>
             </div>
           </div>

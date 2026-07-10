@@ -362,20 +362,27 @@ export function TodayClassScreen() {
     const ev = getEval(student.id);
     const att = getAttendance(student.id);
     const status = att?.status === 'absent' ? 'غائب' : att?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
-    // v4: direct message format with real data (30-point system)
-    const body = `تقرير حصة اليوم - ${settings.appName}
+    const grade = ev ? GRADE_LABELS_AR[ev.gradeLabel] : status;
+    const gradeIcon = ev?.gradeLabel === 'excellent' ? '⭐' : ev?.gradeLabel === 'very_good' ? '✨' : ev?.gradeLabel === 'good' ? '👍' : ev?.gradeLabel === 'acceptable' ? '😐' : ev?.gradeLabel === 'weak' ? '⚠️' : '—';
+    // v5: Enhanced message with emojis and parent address
+    const body = `📋 تقرير حصة اليوم - ${settings.appName}
 
-الطالب: ${student.name}
-التاريخ: ${formatArDate(new Date())}
-الحضور: ${ev?.attendanceScore || 0}/5
-الحفظ: ${ev?.memorizationScore || 0}/10
-المراجعة: ${ev?.reviewScore || 0}/10
-الواجب: ${ev?.homeworkScore || 0}/5
-المجموع: ${ev?.totalScore || 0}/30
-التقدير: ${ev ? GRADE_LABELS_AR[ev.gradeLabel] : status}
-${ev?.note ? 'ملاحظة: ' + ev.note : ''}
+👨‍👩‍👦 ولي أمر الطالب: ${student.name}
 
-مع تحيات ${settings.teacherName}`;
+📅 التاريخ: ${formatArDate(new Date())}
+
+✅ الحضور: ${ev?.attendanceScore || 0}/5
+📖 الحفظ: ${ev?.memorizationScore || 0}/10
+🔄 المراجعة: ${ev?.reviewScore || 0}/10
+📝 الواجب: ${ev?.homeworkScore || 0}/5
+
+🏆 المجموع: ${ev?.totalScore || 0}/30
+📊 التقدير: ${gradeIcon} ${grade}
+${ev?.note ? `\n💬 ملاحظة المعلم: ${ev.note}` : ''}
+
+مع تحياتي 🙏
+${settings.teacherName}
+📞 ${settings.teacherPhone}`;
     window.open(whatsappLink(student.parentPhone, body), '_blank');
     const db = getDB();
     await db.messages.add({
@@ -554,6 +561,39 @@ ${ev?.note ? 'ملاحظة: ' + ev.note : ''}
           <Lock className="w-4 h-4" /> إعادة القفل
         </button>
       )}
+
+      {/* ===== Always-visible Lesson Report Button ===== */}
+      <button
+        onClick={async () => {
+          const { generateLessonReportPDF, downloadBlob } = await import('@/lib/documents');
+          const studentsData = activeStudents.map(s => {
+            const ev = getEval(s.id);
+            const att = getAttendance(s.id);
+            const status = att?.status === 'absent' ? 'غائب' : att?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
+            return {
+              name: s.name,
+              attendance: ev?.attendanceScore || (att?.status === 'present' ? 5 : 0),
+              memorization: ev?.memorizationScore || 0,
+              review: ev?.reviewScore || 0,
+              homework: ev?.homeworkScore || 0,
+              total: ev?.totalScore || 0,
+              grade: ev ? GRADE_LABELS_AR[ev.gradeLabel] : status,
+              note: ev?.note || '',
+            };
+          });
+          const blob = await generateLessonReportPDF(
+            selectedGroup?.name || '', selectedGroup?.subject || '', selectedGroup?.teacherName || '',
+            formatArDate(lesson!.date), scheduleText(selectedGroup!),
+            stats.total, stats.present, stats.absent, stats.attendanceRate,
+            studentsData, settings
+          );
+          downloadBlob(blob, `تقرير-حصة-${selectedGroup?.name}-${selectedDate}.pdf`);
+          toast.success('تم تصدير تقرير الحصة');
+        }}
+        className="w-full py-3 rounded-xl bg-gradient-to-l from-red-600 to-rose-700 text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md"
+      >
+        <FileDown className="w-5 h-5" /> 📄 تصدير تقرير الحصة (PDF)
+      </button>
 
       {/* ===== Attendance methods (disabled if locked) ===== */}
       {!isLocked && !isClosed && (
@@ -796,7 +836,33 @@ ${ev?.note ? 'ملاحظة: ' + ev.note : ''}
 
           {/* Export/Share */}
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => window.print()} className="py-2 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+            <button onClick={async () => {
+              // v5: Generate full lesson report PDF with student table
+              const { generateLessonReportPDF, downloadBlob } = await import('@/lib/documents');
+              const studentsData = activeStudents.map(s => {
+                const ev = getEval(s.id);
+                const att = getAttendance(s.id);
+                const status = att?.status === 'absent' ? 'غائب' : att?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
+                return {
+                  name: s.name,
+                  attendance: ev?.attendanceScore || (att?.status === 'present' ? 5 : 0),
+                  memorization: ev?.memorizationScore || 0,
+                  review: ev?.reviewScore || 0,
+                  homework: ev?.homeworkScore || 0,
+                  total: ev?.totalScore || 0,
+                  grade: ev ? GRADE_LABELS_AR[ev.gradeLabel] : status,
+                  note: ev?.note || '',
+                };
+              });
+              const blob = await generateLessonReportPDF(
+                selectedGroup?.name || '', selectedGroup?.subject || '', selectedGroup?.teacherName || '',
+                formatArDate(lesson!.date), scheduleText(selectedGroup!),
+                summary.totalStudents, summary.present, summary.absent, summary.attendanceRate,
+                studentsData, settings
+              );
+              downloadBlob(blob, `lesson-report-${selectedDate}.pdf`);
+              toast.success('تم تصدير تقرير الحصة');
+            }} className="py-2 rounded-xl bg-red-600 text-white text-xs font-bold flex items-center justify-center gap-1">
               <FileDown className="w-3 h-3" /> PDF
             </button>
             <button onClick={() => window.print()} className="py-2 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1">

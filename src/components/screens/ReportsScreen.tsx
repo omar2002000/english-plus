@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 
 type ReportType =
   | 'daily_student' | 'daily_group' | 'weekly' | 'monthly_student' | 'monthly_group'
-  | 'absence' | 'frequent_absent' | 'best_groups' | 'payment_late' | 'revenue' | 'academic' | 'weak_students';
+  | 'absence' | 'frequent_absent' | 'best_groups' | 'payment_late' | 'revenue' | 'academic' | 'weak_students'
+  | 'payments_log' | 'financial_indicators';
 
 const REPORTS: Array<{ key: ReportType; title: string; icon: any; color: string }> = [
   { key: 'daily_student', title: 'تقرير يومي للطالب', icon: Users, color: 'bg-blue-500' },
@@ -23,8 +24,10 @@ const REPORTS: Array<{ key: ReportType; title: string; icon: any; color: string 
   { key: 'absence', title: 'تقرير الغياب', icon: AlertTriangle, color: 'bg-amber-500' },
   { key: 'frequent_absent', title: 'الطلاب كثيرو الغياب', icon: AlertTriangle, color: 'bg-red-500' },
   { key: 'best_groups', title: 'أفضل المجموعات التزاماً', icon: Trophy, color: 'bg-amber-500' },
-  { key: 'payment_late', title: 'تأخرات الدفع', icon: Wallet, color: 'bg-orange-500' },
-  { key: 'revenue', title: 'الإيرادات والمصروفات', icon: Wallet, color: 'bg-green-600' },
+  { key: 'payment_late', title: 'تقرير المتأخرات', icon: Wallet, color: 'bg-orange-500' },
+  { key: 'payments_log', title: 'سجل المدفوعات', icon: Wallet, color: 'bg-teal-500' },
+  { key: 'revenue', title: 'تقرير التحصيل المالي', icon: Wallet, color: 'bg-green-600' },
+  { key: 'financial_indicators', title: 'المؤشرات المالية', icon: BarChart3, color: 'bg-indigo-600' },
   { key: 'academic', title: 'أداء أكاديمي', icon: BarChart3, color: 'bg-blue-600' },
   { key: 'weak_students', title: 'طلاب يحتاجون متابعة', icon: AlertTriangle, color: 'bg-red-600' },
 ];
@@ -338,6 +341,64 @@ export function ReportsScreen() {
           const sw = deriveStrengthsWeaknesses(stats);
           return [s.name, s.grade, stats.avgTotal, GRADE_LABELS_AR[stats.grade], sw.weaknesses.join('، ')];
         }).filter(r => Number(r[2]) < 15);
+        subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
+        break;
+      }
+      case 'payments_log': {
+        // v5: Payments log report
+        const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear).sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+        headers = ['الطالب', 'المجموعة', 'تاريخ الدفع', 'قيمة الدفعة', 'نظام الدفع', 'رقم الإيصال', 'المتبقي'];
+        rows = monthPayments.map(p => {
+          const s = students.find(s => s.id === p.studentId);
+          const g = s ? groups.find(g => g.id === s.groupId) : null;
+          return [
+            s?.name || '—',
+            g?.name || '—',
+            formatArDateShort(p.paymentDate),
+            formatMoney(p.amountPaid),
+            p.paymentMode === 'start' ? 'أول الشهر' : 'آخر الشهر',
+            p.invoiceNumber,
+            formatMoney(p.amountRemaining),
+          ];
+        });
+        subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
+        break;
+      }
+      case 'financial_indicators': {
+        // v5: Financial indicators with collection/outstanding rates
+        const activeStudents = students.filter(s => s.status === 'active');
+        const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
+        const expected = activeStudents.reduce((s, st) => s + st.monthlyFee, 0);
+        const collected = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
+        const outstanding = Math.max(0, expected - collected);
+        const collectionRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
+        const outstandingRate = expected > 0 ? Math.round((outstanding / expected) * 100) : 0;
+        const paidCount = activeStudents.filter(s => {
+          const sp = monthPayments.filter(p => p.studentId === s.id);
+          return sp.reduce((sum, p) => sum + p.amountPaid, 0) >= s.monthlyFee;
+        }).length;
+        // Group distribution
+        const groupStats = groups.filter(g => !g.archived).map(g => {
+          const gStudents = activeStudents.filter(s => s.groupId === g.id);
+          const gCollected = monthPayments.filter(p => gStudents.some(s => s.id === p.studentId)).reduce((s, p) => s + p.amountPaid, 0);
+          const gExpected = gStudents.reduce((s, st) => s + st.monthlyFee, 0);
+          return { name: g.name, collected: gCollected, expected: gExpected };
+        });
+        headers = ['البند', 'القيمة'];
+        rows = [
+          ['إجمالي الاشتراكات', String(activeStudents.length)],
+          ['إجمالي المبلغ المتوقع', formatMoney(expected)],
+          ['إجمالي المبلغ المحصل', formatMoney(collected)],
+          ['إجمالي المتأخرات', formatMoney(outstanding)],
+          ['نسبة التحصيل', `${collectionRate}%`],
+          ['نسبة المتأخرات', `${outstandingRate}%`],
+          ['عدد المسددين', String(paidCount)],
+          ['عدد غير المسددين', String(activeStudents.length - paidCount)],
+          ['عدد عمليات الدفع', String(monthPayments.length)],
+          ['', ''],
+          ['توزيع المدفوعات حسب المجموعات:', ''],
+          ...groupStats.map(gs => [gs.name, `${formatMoney(gs.collected)} / ${formatMoney(gs.expected)}`]),
+        ];
         subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
         break;
       }

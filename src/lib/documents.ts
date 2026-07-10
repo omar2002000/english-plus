@@ -775,3 +775,61 @@ export async function generateLessonReportPDF(
 
   return doc.output('blob');
 }
+
+// ===== v5: Generate Student Card as PNG image (for WhatsApp sharing) =====
+export async function generateStudentCardImage(
+  student: Student,
+  group: Group | null,
+  settings: Settings
+): Promise<Blob> {
+  const canvas = await renderStudentCardCanvas(student, group, settings);
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      resolve(blob!);
+    }, 'image/png', 1.0);
+  });
+}
+
+// ===== v5: Share student card via WhatsApp (image + text) =====
+export async function shareStudentCardViaWhatsApp(
+  student: Student,
+  group: Group | null,
+  settings: Settings
+): Promise<void> {
+  const cardBlob = await generateStudentCardImage(student, group, settings);
+  const cardUrl = URL.createObjectURL(cardBlob);
+
+  // Try Web Share API (supports image sharing on mobile)
+  if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([cardBlob], `بطاقة-${student.name}.png`, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        const message = `بطاقة هوية الطالب - ${settings.appName}\nالطالب: ${student.name}\nالكود: ${student.code}\n${settings.teacherName}`;
+        await navigator.share({
+          title: 'بطاقة الطالب',
+          text: message,
+          files: [file],
+        });
+        URL.revokeObjectURL(cardUrl);
+        return;
+      }
+    } catch (e) {
+      console.warn('Web Share failed, falling back to download', e);
+    }
+  }
+
+  // Fallback: download the image + open WhatsApp with text
+  const a = document.createElement('a');
+  a.href = cardUrl;
+  a.download = `بطاقة-${student.name}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  // Open WhatsApp with accompanying message
+  const message = `بطاقة هوية الطالب - ${settings.appName}\nالطالب: ${student.name}\nالكود: ${student.code}\n${settings.teacherName}\n📞 ${settings.teacherPhone}\n\nتم إرفاق صورة البطاقة — يرجى حفظها على هاتفك`;
+  const { whatsappLink } = await import('./helpers');
+  window.open(whatsappLink(student.parentPhone, message), '_blank');
+
+  setTimeout(() => URL.revokeObjectURL(cardUrl), 5000);
+}
