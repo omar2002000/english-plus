@@ -53,6 +53,15 @@ export function AppShell() {
   useEffect(() => {
     if (parentToken) return;
     (async () => {
+      // ===== Register Service Worker for Offline Support =====
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.register('/sw.js');
+          console.log('Service Worker registered - App works offline');
+        } catch (e) {
+          console.warn('SW registration failed', e);
+        }
+      }
       const s = loadSettings();
       setSettings(s);
       // apply dark mode class
