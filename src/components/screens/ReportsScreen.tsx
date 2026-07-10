@@ -252,26 +252,58 @@ export function ReportsScreen() {
         break;
       }
       case 'payment_late': {
-        headers = ['الطالب', 'الصف', 'المديونية', 'هاتف ولي الأمر'];
+        // v5: Complete outstanding report with all required fields
+        headers = ['الطالب', 'المجموعة', 'الصف', 'الاشتراك', 'المدفوع', 'المتبقي', 'هاتف ولي الأمر', 'الحالة'];
+        const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
         rows = students
-          .filter(s => s.status === 'active' && s.debt > 0)
-          .sort((a, b) => b.debt - a.debt)
-          .map(s => [s.name, s.grade, formatMoney(s.debt), s.parentPhone]);
-        subtitle = `حتى ${formatArDate(new Date())}`;
+          .filter(s => s.status === 'active')
+          .map(s => {
+            const sp = monthPayments.filter(p => p.studentId === s.id);
+            const paid = sp.reduce((sum, p) => sum + p.amountPaid, 0);
+            const remaining = Math.max(0, s.monthlyFee - paid);
+            const g = groups.find(g => g.id === s.groupId);
+            const status = paid >= s.monthlyFee ? 'مسدد' : paid > 0 ? 'جزئي' : 'غير مسدد';
+            return { s, paid, remaining, g, status };
+          })
+          .filter(x => x.remaining > 0 || x.s.debt > 0)
+          .sort((a, b) => b.remaining - a.remaining)
+          .map(x => [
+            x.s.name,
+            x.g?.name || '—',
+            x.s.grade,
+            formatMoney(x.s.monthlyFee),
+            formatMoney(x.paid),
+            formatMoney(x.remaining),
+            x.s.parentPhone,
+            x.status,
+          ]);
+        subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
         break;
       }
       case 'revenue': {
+        // v5: Complete revenue report with correct outstanding
         const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
+        const activeStudents = students.filter(s => s.status === 'active');
+        const expected = activeStudents.reduce((s, st) => s + st.monthlyFee, 0);
         const totalCollected = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
-        const totalDebt = students.reduce((s, st) => s + st.debt, 0);
-        const expected = students.filter(s => s.status === 'active').reduce((s, st) => s + st.monthlyFee, 0);
+        const outstanding = Math.max(0, expected - totalCollected); // v5: correct
+        const collectionRate = expected > 0 ? Math.round((totalCollected / expected) * 100) : 0;
+        const outstandingRate = expected > 0 ? Math.round((outstanding / expected) * 100) : 0;
+        const paidCount = activeStudents.filter(s => {
+          const sp = monthPayments.filter(p => p.studentId === s.id);
+          return sp.reduce((sum, p) => sum + p.amountPaid, 0) >= s.monthlyFee;
+        }).length;
         headers = ['البند', 'القيمة'];
         rows = [
-          ['إجمالي الإيرادات المحصّلة', formatMoney(totalCollected)],
-          ['إجمالي المتأخرات', formatMoney(totalDebt)],
-          ['الإيراد المتوقع', formatMoney(expected)],
-          ['نسبة التحصيل', `${expected > 0 ? Math.round((totalCollected / expected) * 100) : 0}%`],
-          ['عدد المدفوعات', monthPayments.length],
+          ['إجمالي الاشتراكات', String(activeStudents.length)],
+          ['إجمالي المبلغ المتوقع', formatMoney(expected)],
+          ['إجمالي المبلغ المحصل', formatMoney(totalCollected)],
+          ['إجمالي المتأخرات', formatMoney(outstanding)],
+          ['عدد المسددين', String(paidCount)],
+          ['عدد غير المسددين', String(activeStudents.length - paidCount)],
+          ['نسبة التحصيل', `${collectionRate}%`],
+          ['نسبة المتأخرات', `${outstandingRate}%`],
+          ['عدد عمليات الدفع', String(monthPayments.length)],
         ];
         subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
         break;

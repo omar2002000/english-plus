@@ -91,12 +91,20 @@ export function SubscriptionsScreen() {
       return sum + payments.filter(p => p.studentId === s.id && p.month === month && p.year === year).reduce((a, p) => a + p.amountPaid, 0);
     }, 0);
     const expected = filteredStudents.reduce((s, st) => s + st.monthlyFee, 0);
+    const outstanding = Math.max(0, expected - collected); // v5: correct outstanding
     const paidCount = filteredStudents.filter(s => {
       const sp = payments.filter(p => p.studentId === s.id && p.month === month && p.year === year);
       return sp.reduce((sum, p) => sum + p.amountPaid, 0) >= s.monthlyFee;
     }).length;
     const lateCount = filteredStudents.length - paidCount;
-    return { collected, expected, paidCount, lateCount, total: filteredStudents.length };
+    const collectionRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
+    const outstandingRate = expected > 0 ? Math.round((outstanding / expected) * 100) : 0;
+    const studentsWithDebt = filteredStudents.filter(s => {
+      const sp = payments.filter(p => p.studentId === s.id && p.month === month && p.year === year);
+      const paid = sp.reduce((sum, p) => sum + p.amountPaid, 0);
+      return (s.monthlyFee - paid) > 0 || s.debt > 0;
+    }).length;
+    return { collected, expected, outstanding, paidCount, lateCount, total: filteredStudents.length, collectionRate, outstandingRate, studentsWithDebt };
   }, [filteredStudents, payments, month, year]);
 
   // ===== SINGLE PAYMENT (with new logic) =====
@@ -287,31 +295,55 @@ export function SubscriptionsScreen() {
 
   return (
     <div className="p-4 space-y-3 animate-fade-in pb-32">
-      {/* Stats */}
-      <div className="rounded-2xl bg-gradient-to-l from-amber-500 to-orange-600 p-4 text-white shadow-lg">
+      {/* v5: Financial Summary Dashboard */}
+      <div className="rounded-2xl bg-gradient-to-l from-amber-600 to-orange-700 p-4 text-white shadow-lg">
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-xs opacity-80">{arMonthName(month)} {year}</div>
-            <div className="font-bold">المحصّل: {formatMoney(stats.collected)}</div>
+            <div className="font-bold">الملخص المالي</div>
           </div>
           <div className="text-left">
-            <div className="text-xs opacity-80">المتوقع</div>
-            <div className="font-bold">{formatMoney(stats.expected)}</div>
+            <div className="text-xs opacity-80">نسبة التحصيل</div>
+            <div className="font-bold text-lg">{stats.collectionRate}%</div>
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="bg-white/10 rounded-lg py-1.5">
+        {/* Row 1: Expected / Collected / Outstanding */}
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          <div className="bg-white/10 rounded-lg py-2 px-1 text-center">
+            <div className="text-[10px] opacity-80">المتوقع</div>
+            <div className="text-sm font-bold">{formatMoney(stats.expected)}</div>
+          </div>
+          <div className="bg-emerald-500/30 rounded-lg py-2 px-1 text-center">
+            <div className="text-[10px] opacity-80">المحصّل</div>
+            <div className="text-sm font-bold">{formatMoney(stats.collected)}</div>
+          </div>
+          <div className="bg-red-500/30 rounded-lg py-2 px-1 text-center">
+            <div className="text-[10px] opacity-80">المتأخرات</div>
+            <div className="text-sm font-bold">{formatMoney(stats.outstanding)}</div>
+          </div>
+        </div>
+        {/* Row 2: Paid / Unpaid / With Debt */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="bg-white/10 rounded-lg py-1.5 text-center">
             <div className="text-base font-bold">{stats.paidCount}</div>
             <div className="text-[10px] opacity-80">مسدد</div>
           </div>
-          <div className="bg-white/10 rounded-lg py-1.5">
+          <div className="bg-white/10 rounded-lg py-1.5 text-center">
             <div className="text-base font-bold">{stats.lateCount}</div>
-            <div className="text-[10px] opacity-80">متأخر</div>
+            <div className="text-[10px] opacity-80">غير مسدد</div>
           </div>
-          <div className="bg-white/10 rounded-lg py-1.5">
-            <div className="text-base font-bold">{stats.total}</div>
-            <div className="text-[10px] opacity-80">الإجمالي</div>
+          <div className="bg-white/10 rounded-lg py-1.5 text-center">
+            <div className="text-base font-bold">{stats.studentsWithDebt}</div>
+            <div className="text-[10px] opacity-80">لديهم متأخرات</div>
           </div>
+        </div>
+        {/* Progress bar */}
+        <div className="mt-2 h-2 bg-white/20 rounded-full overflow-hidden">
+          <div className="h-full bg-emerald-400 transition-all" style={{ width: `${stats.collectionRate}%` }} />
+        </div>
+        <div className="flex justify-between mt-1 text-[10px] opacity-80">
+          <span>تحصيل: {stats.collectionRate}%</span>
+          <span>متأخرات: {stats.outstandingRate}%</span>
         </div>
       </div>
 

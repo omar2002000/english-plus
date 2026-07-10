@@ -6,7 +6,7 @@ import { getDB } from '@/lib/db';
 import type { Student, Group } from '@/lib/types';
 import { StatCard, SectionHeader, QuickAction, EmptyState } from '@/components/ui-shared';
 import { SmartRecommendations } from '@/components/SmartRecommendations';
-import { formatMoney, formatArDate, arDayName, scheduleText, getGroupDays } from '@/lib/helpers';
+import { formatMoney, formatArDate, arDayName, scheduleText, getGroupDays, computeFinancialSummary } from '@/lib/helpers';
 import {
   Users, UserCheck, UserX, Wallet, AlertTriangle, CalendarClock,
   UserPlus, FolderPlus, ScanLine, BookOpen, TrendingUp, Trophy, AlertCircle, ChevronLeft
@@ -76,10 +76,13 @@ export function Dashboard() {
 
         const paymentsToday = payments.filter(p => p.paymentDate.split('T')[0] === todayStr);
         const dailyRevenue = paymentsToday.reduce((s, p) => s + p.amountPaid, 0);
-        const monthlyRevenue = payments.filter(p => p.month === month && p.year === year).reduce((s, p) => s + p.amountPaid, 0);
         const totalDebt = activeStudents.reduce((s, st) => s + (st.debt || 0), 0);
-        const expectedMonthly = activeStudents.reduce((s, st) => s + st.monthlyFee, 0);
-        const collectionRate = expectedMonthly > 0 ? Math.round((monthlyRevenue / expectedMonthly) * 100) : 0;
+        // v5: Use unified financial summary for correct outstanding calculation
+        const finSummary = computeFinancialSummary(students, payments, month, year);
+        const expectedMonthly = finSummary.expectedTotal;
+        const monthlyRevenue = finSummary.collectedTotal;
+        const correctOutstanding = finSummary.outstandingTotal;
+        const collectionRate = finSummary.collectionRate;
 
         // Late payers
         const latePayers = activeStudents.filter(s => s.debt > 0).sort((a, b) => b.debt - a.debt).slice(0, 5);
@@ -151,7 +154,7 @@ export function Dashboard() {
           presentToday: presentTodaySet.size,
           absentToday: absentTodaySet.size,
           paymentsToday: paymentsToday.length,
-          totalDebt,
+          totalDebt: correctOutstanding, // v5: correct outstanding = expected - collected
           upcomingLessons: upcoming.slice(0, 5),
           latePayers,
           frequentAbsents,

@@ -370,3 +370,69 @@ export function paymentStatusFor(student: Student, month: number, year: number, 
   if (totalPaid > 0) return 'partial';
   return 'unpaid';
 }
+
+// ===== v5: Unified Financial Calculations =====
+export interface FinancialSummary {
+  totalSubscriptions: number;      // إجمالي الاشتراكات (عدد)
+  expectedTotal: number;           // إجمالي المبلغ المتوقع
+  collectedTotal: number;          // إجمالي المبلغ المحصل
+  outstandingTotal: number;        // إجمالي المتأخرات (expected - collected)
+  paidStudentsCount: number;       // عدد المسددين
+  unpaidStudentsCount: number;     // عدد غير المسددين
+  studentsWithDebtCount: number;   // عدد الطلاب لديهم متأخرات
+  collectionRate: number;          // نسبة التحصيل %
+  outstandingRate: number;         // نسبة المتأخرات %
+}
+
+export function computeFinancialSummary(
+  students: Student[],
+  payments: Payment[],
+  month: number,
+  year: number
+): FinancialSummary {
+  const activeStudents = students.filter(s => s.status === 'active');
+  const totalSubscriptions = activeStudents.length;
+  const expectedTotal = activeStudents.reduce((sum, s) => sum + s.monthlyFee, 0);
+
+  // Collect all payments for this month/year
+  const monthPayments = payments.filter(p => p.month === month && p.year === year);
+  const collectedTotal = monthPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+
+  // Outstanding = expected - collected (never negative)
+  const outstandingTotal = Math.max(0, expectedTotal - collectedTotal);
+
+  // Count paid/unpaid students
+  let paidStudentsCount = 0;
+  let unpaidStudentsCount = 0;
+  let studentsWithDebtCount = 0;
+
+  for (const s of activeStudents) {
+    const studentPayments = monthPayments.filter(p => p.studentId === s.id);
+    const studentPaid = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+    if (studentPaid >= s.monthlyFee && s.monthlyFee > 0) {
+      paidStudentsCount++;
+    } else {
+      unpaidStudentsCount++;
+    }
+    // Student has debt if they owe anything (current debt or unpaid this month)
+    const remaining = Math.max(0, s.monthlyFee - studentPaid);
+    if (remaining > 0 || s.debt > 0) {
+      studentsWithDebtCount++;
+    }
+  }
+
+  const collectionRate = expectedTotal > 0 ? Math.round((collectedTotal / expectedTotal) * 100) : 0;
+  const outstandingRate = expectedTotal > 0 ? Math.round((outstandingTotal / expectedTotal) * 100) : 0;
+
+  return {
+    totalSubscriptions,
+    expectedTotal,
+    collectedTotal,
+    outstandingTotal,
+    paidStudentsCount,
+    unpaidStudentsCount,
+    studentsWithDebtCount,
+    collectionRate,
+    outstandingRate,
+  };
+}
