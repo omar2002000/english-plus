@@ -337,7 +337,7 @@ export function Dashboard() {
                   </div>
                 </div>
                 <div className="text-left">
-                  <div className="font-bold text-emerald-600 text-sm">{avg.toFixed(1)}/40</div>
+                  <div className="font-bold text-emerald-600 text-sm">{avg.toFixed(1)}/30</div>
                   <div className="text-[10px] text-slate-400">المتوسط</div>
                 </div>
               </button>

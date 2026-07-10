@@ -23,6 +23,8 @@ export function WhatsAppScreen() {
   const [categoryFilter, setCategoryFilter] = useState<string>('الكل');
   const [selectedStudent, setSelectedStudent] = useState<string>('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('WT001');
+  const [customMessage, setCustomMessage] = useState('');
+  const [bulkGroupFilter, setBulkGroupFilter] = useState<string>('');
   const [previewMessage, setPreviewMessage] = useState('');
   const [missingVars, setMissingVars] = useState<string[]>([]);
   const [studentVars, setStudentVars] = useState<Record<string, string>>({});
@@ -107,29 +109,51 @@ export function WhatsAppScreen() {
   async function sendBulk() {
     if (bulkSelection.size === 0) return toast.error('اختر طلاباً أولاً');
     const tpl = WHATSAPP_TEMPLATES_V2.find(t => t.id === selectedTemplate);
-    if (!tpl) return;
     let sentCount = 0;
+    let failedCount = 0;
+    const total = bulkSelection.size;
+    toast.info(`جاري إرسال ${total} رسالة متتالية...`);
+
     for (const sid of Array.from(bulkSelection)) {
       const student = students.find(s => s.id === sid);
       if (!student) continue;
-      const vars = await buildStudentVariables(sid, settings);
-      const { filled } = fillTemplateV2(tpl.message, vars);
-      const result = await sendWhatsAppAutomated(student.parentPhone, filled, settings);
+
+      // Build message with real student data
+      let body: string;
+      if (tpl) {
+        const vars = await buildStudentVariables(sid, settings);
+        const { filled } = fillTemplateV2(tpl.message, vars);
+        body = filled;
+      } else {
+        // Custom message
+        body = customMessage || '';
+        const vars = await buildStudentVariables(sid, settings);
+        body = fillTemplateV2(body, vars).filled;
+      }
+
+      // Send via wa.me link (opens sequentially)
+      const result = await sendWhatsAppAutomated(student.parentPhone, body, settings);
+
+      // Log message
       const db = getDB();
       await db.messages.add({
         id: crypto.randomUUID(),
         studentId: sid,
         parentPhone: student.parentPhone,
-        templateType: tpl.status_key,
-        messageBody: filled,
+        templateType: tpl?.status_key || 'custom',
+        messageBody: body,
         sentAt: new Date().toISOString(),
         status: result.success ? 'sent' : 'failed',
       });
-      sentCount++;
-      await new Promise(r => setTimeout(r, 500)); // small delay between sends
-      if (sentCount >= 10) break; // limit
+
+      if (result.success) sentCount++;
+      else failedCount++;
+
+      // Sequential delay between sends
+      await new Promise(r => setTimeout(r, 1500));
     }
-    toast.success(`تم إرسال ${sentCount} رسالة`);
+
+    toast.success(`تم إرسال ${sentCount} رسالة بنجاح${failedCount > 0 ? ` (${failedCount} فشل)` : ''}`);
     setBulkSelection(new Set());
     // refresh messages
     const db = getDB();
@@ -282,28 +306,48 @@ export function WhatsAppScreen() {
       </TabsContent>
 
       <TabsContent value="bulk" className="space-y-3 mt-3">
-        {/* Template selection */}
+        {/* Group filter */}
         <select
-          value={selectedTemplate}
-          onChange={(e) => setSelectedTemplate(e.target.value)}
+          value={bulkGroupFilter}
+          onChange={(e) => setBulkGroupFilter(e.target.value)}
           className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm font-bold"
         >
-          {WHATSAPP_CATEGORIES.map(cat => (
-            <optgroup key={cat} label={cat}>
-              {WHATSAPP_TEMPLATES_V2.filter(t => t.category === cat).map(t => (
-                <option key={t.id} value={t.id}>{t.id} - {t.name}</option>
-              ))}
-            </optgroup>
+          <option value="">كل المجموعات</option>
+          {groups.filter(g => !g.archived).map(g => (
+            <option key={g.id} value={g.id}>{g.name} - {g.grade}</option>
           ))}
         </select>
 
-        {/* Category quick filter */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-          <button onClick={() => setCategoryFilter('الكل')} className={cn('px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap', categoryFilter === 'الكل' ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600')}>الكل</button>
-          {WHATSAPP_CATEGORIES.map(cat => (
-            <button key={cat} onClick={() => setCategoryFilter(cat)} className={cn('px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap', categoryFilter === cat ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600')}>{cat}</button>
-          ))}
+        {/* Template or custom message toggle */}
+        <div className="flex gap-2">
+          <button onClick={() => { setSelectedTemplate('WT001'); setCustomMessage(''); }} className={cn('flex-1 py-2 rounded-xl text-xs font-bold', !customMessage ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600')}>قالب جاهز</button>
+          <button onClick={() => { setCustomMessage('السيد ولي أمر / [اسم الطالب]\n'); setSelectedTemplate(''); }} className={cn('flex-1 py-2 rounded-xl text-xs font-bold', customMessage ? 'bg-green-700 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-600')}>رسالة مخصصة</button>
         </div>
+
+        {/* Template selection or custom message editor */}
+        {!customMessage ? (
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm font-bold"
+          >
+            {WHATSAPP_CATEGORIES.map(cat => (
+              <optgroup key={cat} label={cat}>
+                {WHATSAPP_TEMPLATES_V2.filter(t => t.category === cat).map(t => (
+                  <option key={t.id} value={t.id}>{t.id} - {t.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        ) : (
+          <textarea
+            value={customMessage}
+            onChange={(e) => setCustomMessage(e.target.value)}
+            rows={4}
+            placeholder="اكتب رسالتك هنا... (يمكن استخدام [اسم الطالب] [المبلغ] [اسم الشهر] وغيرها)"
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
+          />
+        )}
 
         <div className="flex items-center justify-between">
           <SearchBar value={search} onChange={setSearch} placeholder="بحث" />
@@ -312,10 +356,14 @@ export function WhatsAppScreen() {
 
         <div className="flex gap-2">
           <button
-            onClick={() => setBulkSelection(new Set(students.map(s => s.id)))}
+            onClick={() => {
+              const list = students.filter(s => s.status === 'active' && (!bulkGroupFilter || s.groupId === bulkGroupFilter));
+              setBulkSelection(new Set(list.map(s => s.id)));
+              toast.success(`تم تحديد ${list.length} طالب`);
+            }}
             className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold"
           >
-            تحديد الكل ({students.length})
+            تحديد الكل
           </button>
           <button
             onClick={() => setBulkSelection(new Set())}
@@ -326,7 +374,7 @@ export function WhatsAppScreen() {
         </div>
 
         <div className="space-y-1.5 max-h-80 overflow-y-auto">
-          {filteredStudents.map(s => (
+          {filteredStudents.filter(s => !bulkGroupFilter || s.groupId === bulkGroupFilter).map(s => (
             <label key={s.id} className={cn('flex items-center gap-2 p-2 rounded-lg cursor-pointer', bulkSelection.has(s.id) ? 'bg-green-50 dark:bg-green-950/30' : 'bg-slate-50 dark:bg-slate-900/50')}>
               <input type="checkbox" checked={bulkSelection.has(s.id)} onChange={(e) => {
                 setBulkSelection(prev => { const next = new Set(prev); if (e.target.checked) next.add(s.id); else next.delete(s.id); return next; });

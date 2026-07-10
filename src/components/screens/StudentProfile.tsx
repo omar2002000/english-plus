@@ -226,7 +226,7 @@ export function StudentProfile() {
           </div>
           <div className="bg-white/10 rounded-xl py-2">
             <div className="text-lg font-bold">{monthStats.avgTotal}</div>
-            <div className="text-[10px] opacity-80">متوسط /40</div>
+            <div className="text-[10px] opacity-80">متوسط /30</div>
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ export function StudentProfile() {
                   </ResponsiveContainer>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2 text-[10px]">
-                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-cyan-600"></span> الإجمالي/40</span>
+                  <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-cyan-600"></span> الإجمالي/30</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-blue-700"></span> الحفظ</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-600"></span> المراجعة</span>
                   <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-violet-700"></span> الواجب</span>
@@ -387,7 +387,21 @@ export function StudentProfile() {
                   return (
                     <div key={a.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-slate-900/50">
                       <span className="text-xs text-slate-600 dark:text-slate-300">{lesson ? formatArDateShort(lesson.date) : '—'}</span>
-                      <span className={cn('text-xs font-bold', color)}>{status}</span>
+                      <div className="flex items-center gap-1">
+                        <span className={cn('text-xs font-bold', color)}>{status}</span>
+                        <button
+                          onClick={async () => {
+                            if (!confirm('حذف هذا السجل؟')) return;
+                            const db = getDB();
+                            await db.attendance.delete(a.id);
+                            setAttendances(prev => prev.filter(x => x.id !== a.id));
+                            toast.success('تم الحذف');
+                          }}
+                          className="w-6 h-6 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -424,15 +438,31 @@ export function StudentProfile() {
                       <div className="text-sm font-bold text-emerald-600">{formatMoney(p.amountPaid)}</div>
                       {p.amountRemaining > 0 && <div className="text-[10px] text-red-600">متبقي: {formatMoney(p.amountRemaining)}</div>}
                     </div>
-                    <button
-                      onClick={async () => {
-                        const blob = await generateInvoicePDF(student, group, p, settings);
-                        downloadBlob(blob, `${p.invoiceNumber}.pdf`);
-                      }}
-                      className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center"
-                    >
-                      <Receipt className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={async () => {
+                          const blob = await generateInvoicePDF(student, group, p, settings);
+                          downloadBlob(blob, `${p.invoiceNumber}.pdf`);
+                        }}
+                        className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-600 flex items-center justify-center"
+                      >
+                        <Receipt className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!confirm('حذف هذه الدفعة؟ سيتم استرجاع المبلغ للمديونية.')) return;
+                          const db = getDB();
+                          await db.payments.delete(p.id);
+                          await db.students.update(student.id, { debt: student.debt + p.amountPaid });
+                          setPayments(prev => prev.filter(x => x.id !== p.id));
+                          toast.success('تم حذف الدفعة');
+                          triggerRefresh();
+                        }}
+                        className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -708,7 +738,7 @@ function CertificatesSection({ student, settings }: { student: Student; settings
   }
 
   const certs = [
-    { type: 'excellence' as const, title: 'شهادة تفوق', icon: '🏆', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300', desc: 'للحاصلين على أعلى الدرجات (36+/40)' },
+    { type: 'excellence' as const, title: 'شهادة تفوق', icon: '🏆', color: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300', desc: 'للحاصلين على أعلى الدرجات (27+/30)' },
     { type: 'commitment' as const, title: 'شهادة التزام', icon: '✅', color: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300', desc: 'للملتزمين بالحضور (90%+)' },
     { type: 'improvement' as const, title: 'شهادة تحسّن', icon: '📈', color: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300', desc: 'لمن أظهروا تحسناً ملحوظاً' },
   ];

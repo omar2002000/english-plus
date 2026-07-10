@@ -630,3 +630,148 @@ export function downloadBlob(blob: Blob, filename: string) {
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+// ===== v4: Lesson Report PDF (full student table) =====
+export async function generateLessonReportPDF(
+  groupName: string,
+  subject: string,
+  teacherName: string,
+  lessonDate: string,
+  lessonTime: string,
+  totalStudents: number,
+  presentCount: number,
+  absentCount: number,
+  attendanceRate: number,
+  studentsData: Array<{
+    name: string;
+    attendance: number;
+    memorization: number;
+    review: number;
+    homework: number;
+    total: number;
+    grade: string;
+    note: string;
+  }>,
+  settings: { teacherName: string; teacherPhone: string; appName: string }
+): Promise<Blob> {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  // Render on canvas for Arabic support
+  const canvas = document.createElement('canvas');
+  const scale = 3;
+  canvas.width = 794 * scale;
+  canvas.height = (200 + studentsData.length * 35 + 100) * scale;
+  const ctx = canvas.getContext('2d')!;
+  ctx.scale(scale, scale);
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, 794, canvas.height / scale);
+
+  // Header
+  const grad = ctx.createLinearGradient(0, 0, 794, 0);
+  grad.addColorStop(0, '#1e3a8a');
+  grad.addColorStop(1, '#0e7490');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 794, 120);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('تقرير حصة اليوم', 397, 45);
+  ctx.font = '20px sans-serif';
+  ctx.fillText(settings.appName, 397, 72);
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`${groupName} • ${subject} • ${teacherName}`, 397, 95);
+  ctx.fillText(`${lessonDate} • ${lessonTime}`, 397, 112);
+
+  // Stats bar
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(20, 130, 754, 40);
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillText(`الطلاب: ${totalStudents}`, 130, 155);
+  ctx.fillStyle = '#059669';
+  ctx.fillText(`الحاضر: ${presentCount}`, 290, 155);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillText(`الغائب: ${absentCount}`, 450, 155);
+  ctx.fillStyle = '#7c3aed';
+  ctx.fillText(`نسبة الحضور: ${attendanceRate}%`, 620, 155);
+
+  // Table header
+  let y = 190;
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(20, y, 754, 30);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  const cols = [
+    { label: 'الطالب', x: 397, w: 180 },
+    { label: 'الحضور/5', x: 300, w: 50 },
+    { label: 'الحفظ/10', x: 240, w: 50 },
+    { label: 'المراجعة/10', x: 180, w: 55 },
+    { label: 'الواجب/5', x: 125, w: 45 },
+    { label: 'المجموع/30', x: 75, w: 55 },
+    { label: 'التقدير', x: 38, w: 40 },
+  ];
+  // Right-to-left headers
+  ctx.fillText('الطالب', 600, y + 20);
+  ctx.fillText('الحضور', 490, y + 20);
+  ctx.fillText('الحفظ', 420, y + 20);
+  ctx.fillText('المراجعة', 350, y + 20);
+  ctx.fillText('الواجب', 280, y + 20);
+  ctx.fillText('المجموع', 210, y + 20);
+  ctx.fillText('التقدير', 140, y + 20);
+  ctx.fillText('ملاحظة', 60, y + 20);
+
+  // Student rows
+  y += 30;
+  ctx.font = '11px sans-serif';
+  for (let i = 0; i < studentsData.length; i++) {
+    const s = studentsData[i];
+    if (i % 2 === 1) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(20, y, 754, 28);
+    }
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'right';
+    ctx.fillText(s.name.slice(0, 18), 760, y + 18);
+    ctx.textAlign = 'center';
+    ctx.fillText(String(s.attendance), 490, y + 18);
+    ctx.fillText(String(s.memorization), 420, y + 18);
+    ctx.fillText(String(s.review), 350, y + 18);
+    ctx.fillText(String(s.homework), 280, y + 18);
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillText(String(s.total), 210, y + 18);
+    ctx.font = '11px sans-serif';
+    // Grade color
+    const gradeColors: Record<string, string> = {
+      'ممتاز': '#059669', 'جيد جداً': '#2563eb', 'جيد': '#ca8a04',
+      'مقبول': '#ea580c', 'ضعيف': '#dc2626', 'غير مُقيّم': '#64748b',
+    };
+    ctx.fillStyle = gradeColors[s.grade] || '#64748b';
+    ctx.fillText(s.grade, 140, y + 18);
+    ctx.fillStyle = '#64748b';
+    ctx.fillText(s.note ? s.note.slice(0, 12) : '—', 60, y + 18);
+    y += 28;
+  }
+
+  // Footer
+  y += 20;
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(0, y, 794, 60);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(settings.teacherName, 397, y + 25);
+  ctx.font = '14px sans-serif';
+  ctx.fillText(`📞 ${settings.teacherPhone}`, 397, y + 45);
+
+  const imgData = canvas.toDataURL('image/png');
+  const pageHeight = (canvas.height / scale) * 0.264583; // px to mm
+  doc.addImage(imgData, 'PNG', 0, 0, 210, pageHeight);
+
+  return doc.output('blob');
+}

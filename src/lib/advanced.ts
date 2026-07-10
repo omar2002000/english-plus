@@ -285,7 +285,7 @@ export async function generateDailyRecommendations(): Promise<{
       student: allStudents.find(s => s.id === sid)!,
       avg: scores.reduce((a, b) => a + b, 0) / scores.length,
     }))
-    .filter(x => x.student && x.avg < 20)
+    .filter(x => x.student && x.avg < 15)
     .slice(0, 5);
 
   const tips = [
@@ -812,14 +812,14 @@ function deriveStrengthsWeaknessesSimple(stats: ReturnType<typeof computeMonthly
   const strengths: string[] = [];
   const weaknesses: string[] = [];
   if (stats.present / (stats.lessonsCount || 1) >= 0.85) strengths.push('حضور منتظم');
-  if (stats.avgHw >= 8) strengths.push('واجب ممتاز');
+  if (stats.avgHw >= 4) strengths.push('واجب ممتاز');
   if (stats.avgMem >= 8) strengths.push('حفظ قوي');
   if (stats.avgRev >= 8) strengths.push('مراجعة جيدة');
-  if (stats.avgTotal >= 32) strengths.push('أداء عام مرتفع');
+  if (stats.avgTotal >= 24) strengths.push('أداء عام مرتفع');
   if (stats.absent / (stats.lessonsCount || 1) >= 0.25) weaknesses.push('غياب متكرر');
   if (stats.avgRev < 6) weaknesses.push('المراجعة أقل من المطلوب');
   if (stats.avgMem < 6) weaknesses.push('الحفظ يحتاج تقوية');
-  if (stats.avgHw < 6) weaknesses.push('الواجب ضعيف');
+  if (stats.avgHw < 3) weaknesses.push('الواجب ضعيف');
   if (strengths.length === 0) strengths.push('مستوى مقبول');
   if (weaknesses.length === 0) weaknesses.push('لا يوجد ملاحظات كبيرة');
   return { strengths, weaknesses };

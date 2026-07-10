@@ -362,23 +362,27 @@ export function TodayClassScreen() {
     const ev = getEval(student.id);
     const att = getAttendance(student.id);
     const status = att?.status === 'absent' ? 'غائب' : att?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
-    const t = WHATSAPP_TEMPLATES.find(t => t.key === 'daily_report');
-    if (!t) return;
-    const body = fillTemplate(t.body, {
-      student_name: student.name, teacher_name: settings.teacherName, app_name: settings.appName,
-      today: formatArDate(new Date()),
-      att: ev?.attendanceScore || 0, mem: ev?.memorizationScore || 0, rev: ev?.reviewScore || 0,
-      hw: ev?.homeworkScore || 0, total: ev?.totalScore || 0,
-      grade: ev ? GRADE_LABELS_AR[ev.gradeLabel] : status,
-      note: ev?.note || globalNote || 'لا يوجد',
-    });
+    // v4: direct message format with real data (30-point system)
+    const body = `تقرير حصة اليوم - ${settings.appName}
+
+الطالب: ${student.name}
+التاريخ: ${formatArDate(new Date())}
+الحضور: ${ev?.attendanceScore || 0}/5
+الحفظ: ${ev?.memorizationScore || 0}/10
+المراجعة: ${ev?.reviewScore || 0}/10
+الواجب: ${ev?.homeworkScore || 0}/5
+المجموع: ${ev?.totalScore || 0}/30
+التقدير: ${ev ? GRADE_LABELS_AR[ev.gradeLabel] : status}
+${ev?.note ? 'ملاحظة: ' + ev.note : ''}
+
+مع تحيات ${settings.teacherName}`;
     window.open(whatsappLink(student.parentPhone, body), '_blank');
     const db = getDB();
     await db.messages.add({
       id: crypto.randomUUID(), studentId: student.id, parentPhone: student.parentPhone,
       templateType: 'daily_report', messageBody: body, sentAt: new Date().toISOString(), status: 'sent',
     });
-    toast.success('تم فتح واتساب');
+    toast.success(`تم إرسال التقرير لولي أمر ${student.name}`);
   }
 
   // ===== DOWNLOAD DAILY REPORT =====

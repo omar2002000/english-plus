@@ -157,6 +157,116 @@
   background: rgba(100, 116, 139, 0.6);
 }
 
+/* ===== v4.1: Professional Design System ===== */
+
+/* Professional card shadows */
+.card-shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06); }
+.card-shadow { box-shadow: 0 2px 8px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04); }
+.card-shadow-lg { box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04); }
+.card-shadow-xl { box-shadow: 0 8px 32px rgba(0,0,0,0.10), 0 4px 12px rgba(0,0,0,0.06); }
+
+/* Professional section headers - unified, deep, sophisticated */
+.section-header-dashboard { background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); }
+.section-header-students { background: linear-gradient(135deg, #5b21b6 0%, #6d28d9 100%); }
+.section-header-groups { background: linear-gradient(135deg, #065f46 0%, #047857 100%); }
+.section-header-attendance { background: linear-gradient(135deg, #9a3412 0%, #c2410c 100%); }
+.section-header-today { background: linear-gradient(135deg, #155e75 0%, #0e7490 100%); }
+.section-header-subs { background: linear-gradient(135deg, #92400e 0%, #b45309 100%); }
+.section-header-reports { background: linear-gradient(135deg, #334155 0%, #475569 100%); }
+.section-header-whatsapp { background: linear-gradient(135deg, #166534 0%, #15803d 100%); }
+.section-header-notifications { background: linear-gradient(135deg, #9f1239 0%, #be123c 100%); }
+.section-header-settings { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); }
+
+/* Professional stat cards */
+.stat-card {
+  border-radius: 1rem;
+  padding: 1rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card:active { transform: scale(0.97); }
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.08);
+  transform: translate(20px, -20px);
+}
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+  transform: translate(-10px, 15px);
+}
+
+/* Professional button styles */
+.btn-primary {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: white;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
+}
+.btn-primary:active { transform: scale(0.96); }
+.btn-primary:disabled { opacity: 0.5; }
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  transition: all 0.15s ease;
+}
+.btn-secondary:active { transform: scale(0.96); }
+
+/* Professional grade badges */
+.grade-badge-pro {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+/* Input fields - clean, professional */
+.input-pro {
+  width: 100%;
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+  outline: none;
+}
+.input-pro:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  background: white;
+}
+
+/* Dark mode inputs */
+.dark .input-pro {
+  background: #1e293b;
+  border-color: #334155;
+}
+.dark .input-pro:focus {
+  border-color: #60a5fa;
+  background: #0f172a;
+}
+
 /* Hide scrollbar utility */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

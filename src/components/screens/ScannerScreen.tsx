@@ -520,7 +520,7 @@ function ARCardOverlay({ studentName }: { studentName: string }) {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
               <div className="text-slate-500">آخر تقييم</div>
-              <div className="font-bold text-emerald-600">{data.totalScore}/40</div>
+              <div className="font-bold text-emerald-600">{data.totalScore}/30</div>
               <div className="text-[10px] text-slate-400">{data.gradeLabel}</div>
             </div>
             <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">

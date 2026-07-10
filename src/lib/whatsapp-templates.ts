@@ -356,10 +356,10 @@ export async function buildStudentVariables(
   else if (student.status === 'archived') statusText = 'مؤرشف';
   else if (student.debt > 0) statusText = `عليه متأخرات بقيمة ${student.debt} ج.م`;
   else if (stats.absent >= 3) statusText = 'كثير الغياب';
-  else if (stats.avgTotal >= 36) statusText = 'متفوق';
-  else if (stats.avgTotal >= 30) statusText = 'جيد جداً';
-  else if (stats.avgTotal >= 24) statusText = 'جيد';
-  else if (stats.avgTotal > 0 && stats.avgTotal < 16) statusText = 'ضعيف يحتاج متابعة';
+  else if (stats.avgTotal >= 27) statusText = 'متفوق';
+  else if (stats.avgTotal >= 22) statusText = 'جيد جداً';
+  else if (stats.avgTotal >= 15) statusText = 'جيد';
+  else if (stats.avgTotal > 0 && stats.avgTotal < 10) statusText = 'ضعيف يحتاج متابعة';
 
   // Group schedule time
   let scheduleTimeStr = '—';

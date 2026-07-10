@@ -6,7 +6,7 @@ import { getDB, logActivity } from '@/lib/db';
 import type { Group, Student, Lesson, Attendance, Payment, DailyEvaluation } from '@/lib/types';
 import { formatMoney, scheduleText, formatArDate, arDayName, arMonthName } from '@/lib/helpers';
 import { SearchBar, EmptyState } from '@/components/ui-shared';
-import { Users, BookOpen, CalendarDays, Wallet, TrendingUp, Plus, UserMinus, ChevronLeft, FileDown, ScanLine, BarChart3, Trophy } from 'lucide-react';
+import { Users, BookOpen, CalendarDays, Wallet, TrendingUp, Plus, UserMinus, ChevronLeft, FileDown, ScanLine, BarChart3, Trophy, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -253,7 +253,7 @@ export function GroupDetails() {
                       <div className="text-[10px] text-slate-500">{t.student.grade}</div>
                     </div>
                     <div className="text-left">
-                      <div className="font-bold text-emerald-600 text-sm">{t.avg.toFixed(1)}/40</div>
+                      <div className="font-bold text-emerald-600 text-sm">{t.avg.toFixed(1)}/30</div>
                     </div>
                   </button>
                 ))}
@@ -341,9 +341,27 @@ export function GroupDetails() {
                     <div className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatArDate(l.date)}</div>
                     <div className="text-xs text-slate-500">{l.closed ? 'مغلقة' : 'مفتوحة'}</div>
                   </div>
-                  <div className="flex gap-3 text-xs">
-                    <span className="text-emerald-600 font-bold">حاضر: {present}</span>
-                    <span className="text-red-600 font-bold">غائب: {absent}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-600 font-bold text-xs">حاضر: {present}</span>
+                    <span className="text-red-600 font-bold text-xs">غائب: {absent}</span>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`حذف حصة ${formatArDate(l.date)}؟ سيتم حذف كل سجلات الحضور والتقييم المرتبطة بها.`)) return;
+                        const db = getDB();
+                        await db.attendance.where('lessonId').equals(l.id).delete();
+                        await db.evaluations.where('lessonId').equals(l.id).delete();
+                        await db.lessons.delete(l.id);
+                        await logActivity('delete_lesson', 'lesson', l.id, `حذف حصة ${formatArDate(l.date)}`);
+                        const updatedLessons = await db.lessons.where('groupId').equals(id).toArray();
+                        setLessons(updatedLessons.sort((a, b) => b.date.localeCompare(a.date)));
+                        toast.success('تم حذف الحصة');
+                        triggerRefresh();
+                      }}
+                      className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 flex items-center justify-center"
+                      title="حذف الحصة"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
               );

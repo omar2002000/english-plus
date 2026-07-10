@@ -87,7 +87,7 @@ export function ReportsScreen() {
           return [
             s?.name || '—',
             ev.attendanceScore, ev.memorizationScore, ev.reviewScore, ev.homeworkScore,
-            `${ev.totalScore}/40`, GRADE_LABELS_AR[ev.gradeLabel], ev.note || '',
+            `${ev.totalScore}/30`, GRADE_LABELS_AR[ev.gradeLabel], ev.note || '',
           ];
         });
         subtitle = formatArDate(day);
@@ -109,7 +109,7 @@ export function ReportsScreen() {
             ev ? ev.memorizationScore : '—',
             ev ? ev.reviewScore : '—',
             ev ? ev.homeworkScore : '—',
-            ev ? `${ev.totalScore}/40` : '—',
+            ev ? `${ev.totalScore}/30` : '—',
             ev ? GRADE_LABELS_AR[ev.gradeLabel] : 'غائب',
           ];
         });
@@ -151,7 +151,7 @@ export function ReportsScreen() {
           return d.getMonth() + 1 === filterMonth && d.getFullYear() === filterYear;
         });
         const monthLessonIds = new Set(monthLessons.map(l => l.id));
-        headers = ['الطالب', 'الحصص', 'الحضور', 'الغياب', 'بعذر', 'متوسط/40', 'التقدير'];
+        headers = ['الطالب', 'الحصص', 'الحضور', 'الغياب', 'بعذر', 'متوسط/30', 'التقدير'];
         rows = students.filter(s => s.status === 'active').map(s => {
           const sAtt = attendances.filter(a => a.studentId === s.id && monthLessonIds.has(a.lessonId));
           const sEvals = evaluations.filter(e => e.studentId === s.id && monthLessonIds.has(e.lessonId));
@@ -172,7 +172,7 @@ export function ReportsScreen() {
         });
         const monthLessonIds = new Set(monthLessons.map(l => l.id));
         const groupStudents = students.filter(s => s.groupId === filterGroupId && s.status === 'active');
-        headers = ['الطالب', 'الحصص', 'الحضور', 'الغياب', 'بعذر', 'متوسط/40', 'التقدير'];
+        headers = ['الطالب', 'الحصص', 'الحضور', 'الغياب', 'بعذر', 'متوسط/30', 'التقدير'];
         rows = groupStudents.map(s => {
           const sAtt = attendances.filter(a => a.studentId === s.id && monthLessonIds.has(a.lessonId));
           const sEvals = evaluations.filter(e => e.studentId === s.id && monthLessonIds.has(e.lessonId));
@@ -298,14 +298,14 @@ export function ReportsScreen() {
           return d.getMonth() + 1 === filterMonth && d.getFullYear() === filterYear;
         });
         const monthLessonIds = new Set(monthLessons.map(l => l.id));
-        headers = ['الطالب', 'الصف', 'المتوسط/40', 'التقدير', 'نقاط تحتاج متابعة'];
+        headers = ['الطالب', 'الصف', 'المتوسط/30', 'التقدير', 'نقاط تحتاج متابعة'];
         rows = students.filter(s => s.status === 'active').map(s => {
           const sAtt = attendances.filter(a => a.studentId === s.id && monthLessonIds.has(a.lessonId));
           const sEvals = evaluations.filter(e => e.studentId === s.id && monthLessonIds.has(e.lessonId));
           const stats = computeMonthlyStats(sAtt, sEvals);
           const sw = deriveStrengthsWeaknesses(stats);
           return [s.name, s.grade, stats.avgTotal, GRADE_LABELS_AR[stats.grade], sw.weaknesses.join('، ')];
-        }).filter(r => Number(r[2]) < 20);
+        }).filter(r => Number(r[2]) < 15);
         subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
         break;
       }
