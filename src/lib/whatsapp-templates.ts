@@ -344,11 +344,12 @@ export async function buildStudentVariables(
   const lastEval = evals[evals.length - 1];
   const lastNote = lastEval?.note || 'لا توجد ملاحظات';
 
-  // Payments this month
+  // v6: Use unified computeStudentFinancialStatus for consistency
+  const { computeStudentFinancialStatus } = await import('./helpers');
   const payments = await db.payments.where('studentId').equals(studentId).toArray();
-  const monthPayments = payments.filter(p => p.month === month && p.year === year);
-  const paidThisMonth = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
-  const remaining = Math.max(0, student.monthlyFee - paidThisMonth);
+  const finStatus = computeStudentFinancialStatus(student, payments, month, year);
+  const paidThisMonth = finStatus.totalPaidThisMonth;
+  const remaining = finStatus.remaining;
 
   // Student status text
   let statusText = 'منتظم';

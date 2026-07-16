@@ -436,3 +436,55 @@ export function computeFinancialSummary(
     outstandingRate,
   };
 }
+
+// ===== v6: Unified Student Financial Status (للتطابق التام في كل الشاشات والتقارير) =====
+export interface StudentFinancialStatus {
+  monthlyFee: number;           // قيمة الاشتراك الشهري
+  totalPaidThisMonth: number;   // إجمالي المدفوع هذا الشهر
+  remaining: number;            // المتبقي هذا الشهر = monthlyFee - totalPaidThisMonth
+  status: 'paid' | 'partial' | 'unpaid'; // حالة السداد
+  statusAr: string;             // حالة السداد بالعربية
+  totalDebt: number;            // المديونية الكلية (من حقل student.debt)
+  paymentCount: number;         // عدد عمليات الدفع هذا الشهر
+  lastPaymentDate: string | null; // تاريخ آخر دفعة
+  lastPaymentAmount: number;    // قيمة آخر دفعة
+}
+
+export function computeStudentFinancialStatus(
+  student: Student,
+  payments: Payment[],
+  month: number,
+  year: number
+): StudentFinancialStatus {
+  const studentPayments = payments.filter(p => p.studentId === student.id && p.month === month && p.year === year);
+  const totalPaidThisMonth = studentPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  const remaining = Math.max(0, student.monthlyFee - totalPaidThisMonth);
+
+  let status: 'paid' | 'partial' | 'unpaid';
+  let statusAr: string;
+  if (totalPaidThisMonth >= student.monthlyFee && student.monthlyFee > 0) {
+    status = 'paid';
+    statusAr = 'مسدد';
+  } else if (totalPaidThisMonth > 0) {
+    status = 'partial';
+    statusAr = 'جزئي';
+  } else {
+    status = 'unpaid';
+    statusAr = 'غير مسدد';
+  }
+
+  const sortedPayments = studentPayments.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+  const lastPayment = sortedPayments[0];
+
+  return {
+    monthlyFee: student.monthlyFee,
+    totalPaidThisMonth,
+    remaining,
+    status,
+    statusAr,
+    totalDebt: student.debt,
+    paymentCount: studentPayments.length,
+    lastPaymentDate: lastPayment?.paymentDate || null,
+    lastPaymentAmount: lastPayment?.amountPaid || 0,
+  };
+}

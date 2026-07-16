@@ -101,6 +101,40 @@ export function AppShell() {
     else document.documentElement.classList.remove('dark');
   }, [settings.darkMode]);
 
+  // v6: Silent backup on page hide/close
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'hidden' && settings.autoWeeklyBackup) {
+        try {
+          const { exportBackup } = await import('@/lib/db');
+          const json = await exportBackup();
+          localStorage.setItem('english_plus_silent_backup', json);
+          localStorage.setItem('english_plus_silent_backup_date', new Date().toISOString());
+        } catch (e) {
+          console.warn('Silent backup failed', e);
+        }
+      }
+    };
+    const handleBeforeUnload = async () => {
+      if (settings.autoWeeklyBackup) {
+        try {
+          const { exportBackup } = await import('@/lib/db');
+          const json = await exportBackup();
+          localStorage.setItem('english_plus_silent_backup', json);
+          localStorage.setItem('english_plus_silent_backup_date', new Date().toISOString());
+        } catch (e) {
+          console.warn('Silent backup failed', e);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [settings.autoWeeklyBackup]);
+
   // ===== Parent App Mode =====
   if (parentToken) {
     return <ParentAppView token={parentToken} />;

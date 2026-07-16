@@ -6,7 +6,7 @@ import { getDB, logActivity } from '@/lib/db';
 import type { Group, Student, Lesson, Attendance, DailyEvaluation, GradeLabel, LessonSummary } from '@/lib/types';
 import { gradeFromTotal, GRADE_LABELS_AR, GRADE_COLORS, computeTotal, formatArDate, arDayName, scheduleText, getGroupDays, formatMoney, whatsappLink, fillTemplate, WHATSAPP_TEMPLATES, MAX_TOTAL_SCORE, WEAK_THRESHOLD } from '@/lib/helpers';
 import { SearchBar, EmptyState } from '@/components/ui-shared';
-import { ScanLine, Save, BookOpen, ChevronLeft, Filter, ArrowUpDown, MessageCircle, FileDown, Send, Check, AlertCircle, Lock, Unlock, X, Users, CalendarDays, Clock, TrendingUp, Award, FileText, ChevronDown, UserPlus, UserMinus, CheckSquare, Square, FolderX } from 'lucide-react';
+import { ScanLine, Save, BookOpen, ChevronLeft, Filter, ArrowUpDown, MessageCircle, FileDown, Send, Check, AlertCircle, Lock, Unlock, X, Users, CalendarDays, Clock, TrendingUp, Award, FileText, ChevronDown, UserPlus, UserMinus, CheckSquare, Square, FolderX, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { generateDailyReportPDF, downloadBlob } from '@/lib/documents';
@@ -32,6 +32,8 @@ export function TodayClassScreen() {
   // Step 2: Group selection
   const [groups, setGroups] = useState<Group[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+  // Quick mode: auto-select today's group
+  const [quickMode, setQuickMode] = useState(params.quick === '1');
   // Data
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
@@ -52,15 +54,26 @@ export function TodayClassScreen() {
   const [showNotePicker, setShowNotePicker] = useState<string | null>(null); // studentId
   const [pinDialog, setPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState('');
+  const [focusMode, setFocusMode] = useState(false); // v6: Focus Mode
 
   // Load groups
   useEffect(() => {
     (async () => {
       const db = getDB();
       const g = await db.groups.toArray();
-      setGroups(g.filter(g => !g.archived));
+      const activeGroups = g.filter(g => !g.archived);
+      setGroups(activeGroups);
+      // Quick mode: auto-select the group that has a lesson today
+      if (quickMode && !selectedGroupId) {
+        const todayArDay = arDayName(new Date());
+        const todayGroups = activeGroups.filter(grp => getGroupDays(grp).includes(todayArDay));
+        if (todayGroups.length === 1) {
+          setSelectedGroupId(todayGroups[0].id);
+          setQuickMode(false);
+        }
+      }
     })();
-  }, [refreshKey]);
+  }, [refreshKey, quickMode, selectedGroupId]);
 
   // Load lesson + students + data when group selected
   useEffect(() => {
@@ -136,28 +149,45 @@ export function TodayClassScreen() {
   async function markAttendance(studentId: string, status: 'present' | 'absent' | 'excused') {
     if (!lesson) return;
     const db = getDB();
+    const now = new Date();
+    // v6: Smart attendance — check if late (more than 10 min after lesson start)
+    let actualStatus: 'present' | 'absent' | 'excused' | 'late' = status;
+    if (status === 'present' && selectedGroup) {
+      const grp = selectedGroup;
+      let lessonHour = grp.scheduleHour;
+      if (grp.schedulePeriod === 'pm' && lessonHour < 12) lessonHour += 12;
+      const lessonStart = new Date();
+      lessonStart.setHours(lessonHour, grp.scheduleMinute, 0, 0);
+      const diffMin = (now.getTime() - lessonStart.getTime()) / 60000;
+      if (diffMin > 10) {
+        actualStatus = 'late';
+      }
+    }
     const existing = attendances.find(a => a.studentId === studentId);
     if (existing) {
-      await db.attendance.update(existing.id, { status, scannedAt: new Date().toISOString() });
-      setAttendances(prev => prev.map(a => a.id === existing.id ? { ...a, status } : a));
+      await db.attendance.update(existing.id, { status: actualStatus as any, scannedAt: now.toISOString() });
+      setAttendances(prev => prev.map(a => a.id === existing.id ? { ...a, status: actualStatus as any } : a));
     } else {
       const att: Attendance = {
         id: crypto.randomUUID(),
         studentId, lessonId: lesson.id, groupId: lesson.groupId,
-        status, scannedAt: new Date().toISOString(),
+        status: actualStatus as any, scannedAt: now.toISOString(),
       };
       await db.attendance.add(att);
       setAttendances(prev => [...prev, att]);
-      await db.students.update(studentId, { lastAttendance: new Date().toISOString() });
+      await db.students.update(studentId, { lastAttendance: now.toISOString() });
     }
-    // Auto set attendance=5 if present and no score yet
-    if (status === 'present') {
+    // v6: Auto-set attendance score based on status
+    if (actualStatus === 'present') {
       const ev = getEval(studentId);
       if (!ev || ev.attendanceScore === 0) {
         updateScore(studentId, 'attendanceScore', 5);
       }
+    } else if (actualStatus === 'late') {
+      // v6: Late = deduct 2 points (5 - 2 = 3)
+      updateScore(studentId, 'attendanceScore', 3);
+      toast.info(`طالب متأخر — تم خصم 2 من درجة الحضور`);
     } else {
-      // Set attendance=0 if absent/excused
       updateScore(studentId, 'attendanceScore', 0);
     }
   }
@@ -503,8 +533,20 @@ ${settings.teacherName}
 
   // ===== LESSON VIEW =====
   return (
-    <div className="p-4 space-y-3 animate-fade-in pb-40">
+    <div className={cn("p-4 space-y-3 animate-fade-in pb-40", focusMode && "p-2")}>
+      {/* v6: Focus Mode toggle */}
+      <button
+        onClick={() => setFocusMode(!focusMode)}
+        className={cn(
+          "w-full py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 transition-all",
+          focusMode ? "bg-cyan-600 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+        )}
+      >
+        {focusMode ? <><Eye className="w-4 h-4" /> إظهار كل العناصر</> : <><EyeOff className="w-4 h-4" /> 🎯 وضع مركّز (جدول التقييم فقط)</>}
+      </button>
+
       {/* ===== رأس شاشة الحصة (10 بنود) ===== */}
+      {!focusMode && (
       <div className="rounded-2xl bg-gradient-to-l from-cyan-700 to-cyan-900 p-4 text-white shadow-lg">
         <div className="flex items-start justify-between mb-3">
           <div>
@@ -544,6 +586,7 @@ ${settings.teacherName}
           {!isLocked && !isClosed && <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center gap-1"><Unlock className="w-3 h-3" /> مفتوحة</span>}
         </div>
       </div>
+      )}
 
       {/* ===== Lock/Unlock Controls ===== */}
       {isLocked && (
@@ -610,6 +653,64 @@ ${settings.teacherName}
           >
             <ScanLine className="w-4 h-4" /> إدخال PIN
           </button>
+
+          {/* v6: Quick Grade Presets */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                // "الكل ممتاز" — 5/10/10/5 for all present students
+                for (const s of activeStudents) {
+                  const att = getAttendance(s.id);
+                  if (att?.status === 'present' || att?.status === 'late') {
+                    updateScore(s.id, 'attendanceScore', att.status === 'late' ? 3 : 5);
+                    updateScore(s.id, 'memorizationScore', 10);
+                    updateScore(s.id, 'reviewScore', 10);
+                    updateScore(s.id, 'homeworkScore', 5);
+                  }
+                }
+                toast.success('تم تطبيق "الكل ممتاز" للحاضرين');
+              }}
+              className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+            >
+              ⭐ الكل ممتاز
+            </button>
+            <button
+              onClick={() => {
+                // "الكل جيد" — 5/8/8/4
+                for (const s of activeStudents) {
+                  const att = getAttendance(s.id);
+                  if (att?.status === 'present' || att?.status === 'late') {
+                    updateScore(s.id, 'attendanceScore', att.status === 'late' ? 3 : 5);
+                    updateScore(s.id, 'memorizationScore', 8);
+                    updateScore(s.id, 'reviewScore', 8);
+                    updateScore(s.id, 'homeworkScore', 4);
+                  }
+                }
+                toast.success('تم تطبيق "الكل جيد" للحاضرين');
+              }}
+              className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold"
+            >
+              👍 الكل جيد
+            </button>
+            <button
+              onClick={() => {
+                // "الكل مقبول" — 5/6/6/3
+                for (const s of activeStudents) {
+                  const att = getAttendance(s.id);
+                  if (att?.status === 'present' || att?.status === 'late') {
+                    updateScore(s.id, 'attendanceScore', att.status === 'late' ? 3 : 5);
+                    updateScore(s.id, 'memorizationScore', 6);
+                    updateScore(s.id, 'reviewScore', 6);
+                    updateScore(s.id, 'homeworkScore', 3);
+                  }
+                }
+                toast.success('تم تطبيق "الكل مقبول" للحاضرين');
+              }}
+              className="flex-1 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold"
+            >
+              ✅ الكل مقبول
+            </button>
+          </div>
 
           {/* Student manager */}
           <button onClick={() => setShowStudentManager(!showStudentManager)} className="w-full py-2 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center justify-center gap-1">

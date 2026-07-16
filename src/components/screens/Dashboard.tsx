@@ -9,7 +9,7 @@ import { SmartRecommendations } from '@/components/SmartRecommendations';
 import { formatMoney, formatArDate, arDayName, scheduleText, getGroupDays, computeFinancialSummary } from '@/lib/helpers';
 import {
   Users, UserCheck, UserX, Wallet, AlertTriangle, CalendarClock,
-  UserPlus, FolderPlus, ScanLine, BookOpen, TrendingUp, Trophy, AlertCircle, ChevronLeft
+  UserPlus, FolderPlus, ScanLine, BookOpen, TrendingUp, Trophy, AlertCircle, ChevronLeft, Zap
 } from 'lucide-react';
 
 interface DashboardData {
@@ -216,8 +216,8 @@ export function Dashboard() {
         <SectionHeader title="إجراءات سريعة" />
         <div className="grid grid-cols-4 gap-2">
           <QuickAction label="بدء الحضور" icon={<ScanLine className="w-6 h-6" />} color="bg-gradient-to-br from-orange-500 to-amber-600" onClick={() => navigate('scanner')} />
+          <QuickAction label="حصة سريعة" icon={<Zap className="w-6 h-6" />} color="bg-gradient-to-br from-yellow-500 to-orange-600" onClick={() => navigate('today_class', { quick: '1' })} />
           <QuickAction label="إضافة طالب" icon={<UserPlus className="w-6 h-6" />} color="bg-gradient-to-br from-violet-500 to-purple-700" onClick={() => navigate('add_student')} />
-          <QuickAction label="إضافة مجموعة" icon={<FolderPlus className="w-6 h-6" />} color="bg-gradient-to-br from-emerald-500 to-green-700" onClick={() => navigate('add_group')} />
           <QuickAction label="حصة اليوم" icon={<BookOpen className="w-6 h-6" />} color="bg-gradient-to-br from-cyan-500 to-teal-700" onClick={() => navigate('today_class')} />
         </div>
       </div>

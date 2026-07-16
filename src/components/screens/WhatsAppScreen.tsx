@@ -8,14 +8,14 @@ import { WHATSAPP_TEMPLATES_V2, WHATSAPP_CATEGORIES, buildStudentVariables, fill
 import { whatsappLink, formatArDateShort } from '@/lib/helpers';
 import { sendWhatsAppAutomated } from '@/lib/advanced';
 import { SearchBar, EmptyState } from '@/components/ui-shared';
-import { Search, Send, MessageCircle, History, Users, ChevronLeft, Eye, AlertCircle, FileText } from 'lucide-react';
+import { Search, Send, MessageCircle, History, Users, ChevronLeft, Eye, AlertCircle, FileText, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function WhatsAppScreen() {
   const { settings, refreshKey, triggerRefresh, navigate } = useApp();
-  const [tab, setTab] = useState<'templates' | 'bulk' | 'history'>('templates');
+  const [tab, setTab] = useState<'templates' | 'bulk' | 'history' | 'weekly'>('templates');
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [messages, setMessages] = useState<MessageLog[]>([]);
@@ -171,6 +171,7 @@ export function WhatsAppScreen() {
           <TabsTrigger value="templates">قالب فردي</TabsTrigger>
           <TabsTrigger value="bulk">إرسال جماعي</TabsTrigger>
           <TabsTrigger value="history">السجل ({messages.length})</TabsTrigger>
+          <TabsTrigger value="weekly">📅 أسبوعي</TabsTrigger>
         </TabsList>
 
       <TabsContent value="templates" className="space-y-3 mt-3">
@@ -427,6 +428,113 @@ export function WhatsAppScreen() {
             })}
           </div>
         )}
+      </TabsContent>
+
+      {/* v6: Weekly Auto Report */}
+      <TabsContent value="weekly" className="space-y-3 mt-3">
+        <div className="rounded-2xl bg-gradient-to-l from-green-700 to-emerald-800 p-4 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <CalendarDays className="w-5 h-5" />
+            <div className="font-bold">تقرير الواتساب الأسبوعي التلقائي</div>
+          </div>
+          <p className="text-xs opacity-90 mb-3">يرسل تقريراً شاملاً لكل ولي أمر يحتوي على: ملخص حضور الأسبوع + متوسط الدرجات + حالة السداد. يفتح واتساب لكل ولي أمر بالتسلسل.</p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={async () => {
+              // Select all active students for weekly report
+              setBulkSelection(new Set(students.filter(s => s.status === 'active').map(s => s.id)));
+              toast.success(`تم تحديد ${students.filter(s => s.status === 'active').length} طالب`);
+            }}
+            className="flex-1 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold"
+          >
+            تحديد كل الطلاب
+          </button>
+        </div>
+
+        <div className="space-y-1.5 max-h-60 overflow-y-auto">
+          {students.filter(s => s.status === 'active').map(s => (
+            <label key={s.id} className={cn('flex items-center gap-2 p-2 rounded-lg cursor-pointer', bulkSelection.has(s.id) ? 'bg-green-50 dark:bg-green-950/30' : 'bg-slate-50 dark:bg-slate-900/50')}>
+              <input type="checkbox" checked={bulkSelection.has(s.id)} onChange={(e) => {
+                setBulkSelection(prev => { const next = new Set(prev); if (e.target.checked) next.add(s.id); else next.delete(s.id); return next; });
+              }} className="w-4 h-4" />
+              <div className="flex-1 text-sm">
+                <div className="font-bold text-slate-800 dark:text-slate-100">{s.name}</div>
+                <div className="text-[10px] text-slate-500">{s.grade} • {s.parentPhone}</div>
+              </div>
+            </label>
+          ))}
+        </div>
+
+        <button
+          onClick={async () => {
+            if (bulkSelection.size === 0) return toast.error('اختر طلاباً أولاً');
+            const db = getDB();
+            const now = new Date();
+            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            const allLessons = await db.lessons.toArray();
+            const weekLessons = allLessons.filter(l => new Date(l.date) >= weekAgo);
+            const weekLessonIds = new Set(weekLessons.map(l => l.id));
+            let sentCount = 0;
+            toast.info(`جاري إرسال ${bulkSelection.size} تقرير أسبوعي...`);
+
+            for (const sid of Array.from(bulkSelection)) {
+              const student = students.find(s => s.id === sid);
+              if (!student) continue;
+
+              // Compute weekly stats
+              const sAtts = await db.attendance.where('studentId').equals(sid).toArray();
+              const weekAtts = sAtts.filter(a => weekLessonIds.has(a.lessonId));
+              const present = weekAtts.filter(a => a.status === 'present').length;
+              const absent = weekAtts.filter(a => a.status === 'absent').length;
+              const sEvals = await db.evaluations.where('studentId').equals(sid).toArray();
+              const weekEvals = sEvals.filter(e => weekLessonIds.has(e.lessonId));
+              const avgScore = weekEvals.length > 0 ? Math.round((weekEvals.reduce((s, e) => s + e.totalScore, 0) / weekEvals.length) * 10) / 10 : 0;
+
+              // Financial status
+              const sPayments = await db.payments.where('studentId').equals(sid).toArray();
+              const month = now.getMonth() + 1;
+              const year = now.getFullYear();
+              const monthPayments = sPayments.filter(p => p.month === month && p.year === year);
+              const paid = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
+              const remaining = Math.max(0, student.monthlyFee - paid);
+              const finStatus = remaining > 0 ? `متبقي: ${remaining} ج.م` : 'مسدد ✅';
+
+              const body = `📅 تقرير أسبوعي - ${settings.appName}
+
+👨‍👩‍👦 ولي أمر الطالب: ${student.name}
+
+📊 ملخص الأسبوع:
+✅ الحضور: ${present}
+❌ الغياب: ${absent}
+📈 متوسط الدرجات: ${avgScore}/30
+
+💰 الحالة المالية: ${finStatus}
+
+مع تحياتي 🙏
+${settings.teacherName}
+📞 ${settings.teacherPhone}`;
+
+              const result = await sendWhatsAppAutomated(student.parentPhone, body, settings);
+              await db.messages.add({
+                id: crypto.randomUUID(), studentId: sid, parentPhone: student.parentPhone,
+                templateType: 'weekly_report', messageBody: body, sentAt: new Date().toISOString(),
+                status: result.success ? 'sent' : 'failed',
+              });
+              if (result.success) sentCount++;
+              await new Promise(r => setTimeout(r, 1500));
+            }
+            toast.success(`تم إرسال ${sentCount} تقرير أسبوعي`);
+            setBulkSelection(new Set());
+            const m = await db.messages.toArray();
+            setMessages(m.sort((a, b) => b.sentAt.localeCompare(a.sentAt)));
+            triggerRefresh();
+          }}
+          className="w-full py-3 rounded-2xl bg-gradient-to-l from-green-700 to-emerald-800 text-white font-bold flex items-center justify-center gap-2 active:scale-95"
+        >
+          <Send className="w-5 h-5" /> 📤 إرسال التقارير الأسبوعية ({bulkSelection.size})
+        </button>
       </TabsContent>
       </Tabs>
     </div>

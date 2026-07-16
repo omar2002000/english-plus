@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '@/lib/store';
 import { getDB } from '@/lib/db';
 import type { Student, Group, Lesson, Attendance, Payment, DailyEvaluation } from '@/lib/types';
-import { formatMoney, formatArDate, formatArDateShort, arMonthName, GRADE_LABELS_AR, computeMonthlyStats, deriveStrengthsWeaknesses, scheduleText } from '@/lib/helpers';
+import { formatMoney, formatArDate, formatArDateShort, arMonthName, GRADE_LABELS_AR, computeMonthlyStats, deriveStrengthsWeaknesses, scheduleText, computeStudentFinancialStatus, computeFinancialSummary } from '@/lib/helpers';
 import { generateTablePDF, downloadBlob, exportStudentsToExcel, exportPaymentsToExcel } from '@/lib/documents';
 import { FileDown, FileSpreadsheet, Printer, Share2, ChevronLeft, CalendarDays, BarChart3, Wallet, AlertTriangle, Trophy, BookOpen, Users } from 'lucide-react';
 import { toast } from 'sonner';
@@ -255,57 +255,45 @@ export function ReportsScreen() {
         break;
       }
       case 'payment_late': {
-        // v5: Complete outstanding report with all required fields
+        // v6: Use unified computeStudentFinancialStatus for consistency
         headers = ['الطالب', 'المجموعة', 'الصف', 'الاشتراك', 'المدفوع', 'المتبقي', 'هاتف ولي الأمر', 'الحالة'];
-        const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
         rows = students
           .filter(s => s.status === 'active')
           .map(s => {
-            const sp = monthPayments.filter(p => p.studentId === s.id);
-            const paid = sp.reduce((sum, p) => sum + p.amountPaid, 0);
-            const remaining = Math.max(0, s.monthlyFee - paid);
+            const fin = computeStudentFinancialStatus(s, payments, filterMonth, filterYear);
             const g = groups.find(g => g.id === s.groupId);
-            const status = paid >= s.monthlyFee ? 'مسدد' : paid > 0 ? 'جزئي' : 'غير مسدد';
-            return { s, paid, remaining, g, status };
+            return { s, fin, g };
           })
-          .filter(x => x.remaining > 0 || x.s.debt > 0)
-          .sort((a, b) => b.remaining - a.remaining)
+          .filter(x => x.fin.remaining > 0 || x.fin.totalDebt > 0)
+          .sort((a, b) => b.fin.remaining - a.fin.remaining)
           .map(x => [
             x.s.name,
             x.g?.name || '—',
             x.s.grade,
-            formatMoney(x.s.monthlyFee),
-            formatMoney(x.paid),
-            formatMoney(x.remaining),
+            formatMoney(x.fin.monthlyFee),
+            formatMoney(x.fin.totalPaidThisMonth),
+            formatMoney(x.fin.remaining),
             x.s.parentPhone,
-            x.status,
+            x.fin.statusAr,
           ]);
         subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
         break;
       }
       case 'revenue': {
-        // v5: Complete revenue report with correct outstanding
+        // v6: Use unified computeFinancialSummary for consistency
+        const finSum = computeFinancialSummary(students, payments, filterMonth, filterYear);
         const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
-        const activeStudents = students.filter(s => s.status === 'active');
-        const expected = activeStudents.reduce((s, st) => s + st.monthlyFee, 0);
-        const totalCollected = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
-        const outstanding = Math.max(0, expected - totalCollected); // v5: correct
-        const collectionRate = expected > 0 ? Math.round((totalCollected / expected) * 100) : 0;
-        const outstandingRate = expected > 0 ? Math.round((outstanding / expected) * 100) : 0;
-        const paidCount = activeStudents.filter(s => {
-          const sp = monthPayments.filter(p => p.studentId === s.id);
-          return sp.reduce((sum, p) => sum + p.amountPaid, 0) >= s.monthlyFee;
-        }).length;
         headers = ['البند', 'القيمة'];
         rows = [
-          ['إجمالي الاشتراكات', String(activeStudents.length)],
-          ['إجمالي المبلغ المتوقع', formatMoney(expected)],
-          ['إجمالي المبلغ المحصل', formatMoney(totalCollected)],
-          ['إجمالي المتأخرات', formatMoney(outstanding)],
-          ['عدد المسددين', String(paidCount)],
-          ['عدد غير المسددين', String(activeStudents.length - paidCount)],
-          ['نسبة التحصيل', `${collectionRate}%`],
-          ['نسبة المتأخرات', `${outstandingRate}%`],
+          ['إجمالي الاشتراكات', String(finSum.totalSubscriptions)],
+          ['إجمالي المبلغ المتوقع', formatMoney(finSum.expectedTotal)],
+          ['إجمالي المبلغ المحصل', formatMoney(finSum.collectedTotal)],
+          ['إجمالي المتأخرات', formatMoney(finSum.outstandingTotal)],
+          ['عدد المسددين', String(finSum.paidStudentsCount)],
+          ['عدد غير المسددين', String(finSum.unpaidStudentsCount)],
+          ['عدد الطلاب لديهم متأخرات', String(finSum.studentsWithDebtCount)],
+          ['نسبة التحصيل', `${finSum.collectionRate}%`],
+          ['نسبة المتأخرات', `${finSum.outstandingRate}%`],
           ['عدد عمليات الدفع', String(monthPayments.length)],
         ];
         subtitle = `${arMonthName(filterMonth)} ${filterYear}`;
@@ -365,18 +353,10 @@ export function ReportsScreen() {
         break;
       }
       case 'financial_indicators': {
-        // v5: Financial indicators with collection/outstanding rates
-        const activeStudents = students.filter(s => s.status === 'active');
+        // v6: Use unified computeFinancialSummary for consistency
+        const finSum = computeFinancialSummary(students, payments, filterMonth, filterYear);
         const monthPayments = payments.filter(p => p.month === filterMonth && p.year === filterYear);
-        const expected = activeStudents.reduce((s, st) => s + st.monthlyFee, 0);
-        const collected = monthPayments.reduce((s, p) => s + p.amountPaid, 0);
-        const outstanding = Math.max(0, expected - collected);
-        const collectionRate = expected > 0 ? Math.round((collected / expected) * 100) : 0;
-        const outstandingRate = expected > 0 ? Math.round((outstanding / expected) * 100) : 0;
-        const paidCount = activeStudents.filter(s => {
-          const sp = monthPayments.filter(p => p.studentId === s.id);
-          return sp.reduce((sum, p) => sum + p.amountPaid, 0) >= s.monthlyFee;
-        }).length;
+        const activeStudents = students.filter(s => s.status === 'active');
         // Group distribution
         const groupStats = groups.filter(g => !g.archived).map(g => {
           const gStudents = activeStudents.filter(s => s.groupId === g.id);
@@ -386,14 +366,15 @@ export function ReportsScreen() {
         });
         headers = ['البند', 'القيمة'];
         rows = [
-          ['إجمالي الاشتراكات', String(activeStudents.length)],
-          ['إجمالي المبلغ المتوقع', formatMoney(expected)],
-          ['إجمالي المبلغ المحصل', formatMoney(collected)],
-          ['إجمالي المتأخرات', formatMoney(outstanding)],
-          ['نسبة التحصيل', `${collectionRate}%`],
-          ['نسبة المتأخرات', `${outstandingRate}%`],
-          ['عدد المسددين', String(paidCount)],
-          ['عدد غير المسددين', String(activeStudents.length - paidCount)],
+          ['إجمالي الاشتراكات', String(finSum.totalSubscriptions)],
+          ['إجمالي المبلغ المتوقع', formatMoney(finSum.expectedTotal)],
+          ['إجمالي المبلغ المحصل', formatMoney(finSum.collectedTotal)],
+          ['إجمالي المتأخرات', formatMoney(finSum.outstandingTotal)],
+          ['نسبة التحصيل', `${finSum.collectionRate}%`],
+          ['نسبة المتأخرات', `${finSum.outstandingRate}%`],
+          ['عدد المسددين', String(finSum.paidStudentsCount)],
+          ['عدد غير المسددين', String(finSum.unpaidStudentsCount)],
+          ['عدد الطلاب لديهم متأخرات', String(finSum.studentsWithDebtCount)],
           ['عدد عمليات الدفع', String(monthPayments.length)],
           ['', ''],
           ['توزيع المدفوعات حسب المجموعات:', ''],

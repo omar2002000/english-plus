@@ -5,7 +5,7 @@ import { useApp } from '@/lib/store';
 import { getDB, logActivity, generateInvoiceNumber } from '@/lib/db';
 import type { Student, Group, Payment, PaymentMode } from '@/lib/types';
 import { SearchBar, EmptyState, StatusPill } from '@/components/ui-shared';
-import { formatMoney, formatArDate, formatArDateShort, arMonthName, whatsappLink, fillTemplate, WHATSAPP_TEMPLATES, paymentStatusFor } from '@/lib/helpers';
+import { formatMoney, formatArDate, formatArDateShort, arMonthName, whatsappLink, fillTemplate, WHATSAPP_TEMPLATES, paymentStatusFor, computeStudentFinancialStatus } from '@/lib/helpers';
 import { getActiveDiscountPercent, calculateDiscountedFee, sendWhatsAppAutomated } from '@/lib/advanced';
 import { buildStudentVariables, fillTemplateV2, WHATSAPP_TEMPLATES_V2 } from '@/lib/whatsapp-templates';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -78,12 +78,13 @@ export function SubscriptionsScreen() {
   }
 
   function getStudentStatus(studentId: string, monthlyFee: number): 'paid' | 'partial' | 'unpaid' | 'late' {
-    const sp = getStudentPayments(studentId);
-    const totalPaid = sp.reduce((s, p) => s + p.amountPaid, 0);
-    if (totalPaid >= monthlyFee && monthlyFee > 0) return 'paid';
-    if (totalPaid > 0) return 'partial';
-    const s = students.find(s => s.id === studentId);
-    return s && s.debt > 0 ? 'late' : 'unpaid';
+    // v6: Use unified financial status for consistency
+    const student = students.find(s => s.id === studentId);
+    if (!student) return 'unpaid';
+    const finStatus = computeStudentFinancialStatus(student, payments, month, year);
+    if (finStatus.status === 'paid') return 'paid';
+    if (finStatus.status === 'partial') return 'partial';
+    return student.debt > 0 ? 'late' : 'unpaid';
   }
 
   const stats = useMemo(() => {

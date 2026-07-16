@@ -63,6 +63,22 @@ class EnglishPlusDB extends Dexie {
       voiceLogs: 'id, timestamp, success',
       pinAttempts: 'id, timestamp, success',
     });
+    // v6: add parentPhone index for packages eligibility check
+    this.version(4).stores({
+      students: 'id, code, name, grade, groupId, status, academicYear, parentPhone',
+      groups: 'id, code, name, grade, academicYear, archived',
+      lessons: 'id, groupId, date, closed',
+      attendance: 'id, studentId, lessonId, groupId, status, scannedAt',
+      evaluations: 'id, lessonId, studentId, createdAt',
+      payments: 'id, studentId, month, year, paymentMode, paymentDate',
+      messages: 'id, studentId, sentAt, status',
+      activities: 'id, timestamp, entity, entityId',
+      packages: 'id, studentId, type, active, createdAt',
+      notifications: 'id, type, targetId, sent, read, createdAt, scheduledFor',
+      parentTokens: 'token, studentId, active, createdAt',
+      voiceLogs: 'id, timestamp, success',
+      pinAttempts: 'id, timestamp, success',
+    });
   }
 }
 

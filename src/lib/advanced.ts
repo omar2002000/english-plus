@@ -45,7 +45,8 @@ export async function checkPackageEligibility(studentId: string): Promise<Array<
   const results: Array<{ type: PackageType; eligible: boolean; reason: string }> = [];
 
   // 1. Siblings: another student with same parentPhone
-  const siblings = await db.students.where('parentPhone').equals(student.parentPhone).toArray();
+  const allStudents = await db.students.toArray();
+  const siblings = allStudents.filter(s => s.parentPhone === student.parentPhone);
   const hasSibling = siblings.filter(s => s.id !== studentId && s.status === 'active').length > 0;
   results.push({
     type: 'siblings',
