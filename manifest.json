@@ -1,0 +1,22 @@
+{
+  "name": "English Plus — إدارة الحصص والمراكز التعليمية",
+  "short_name": "English Plus",
+  "description": "تطبيق احترافي لإدارة الطلاب والمجموعات والحضور والمدفوعات والتقارير",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
