@@ -23,7 +23,11 @@ export type ScreenKey =
   | 'notifications'
   | 'settings'
   | 'archive'
-  | 'app_lock';
+  | 'app_lock'
+  | 'revenue_forecast'
+  | 'contact_log'
+  | 'calendar'
+  | 'todo';
 
 interface AppState {
   // navigation

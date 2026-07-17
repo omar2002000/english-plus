@@ -6,7 +6,7 @@ import { getDB, logActivity } from '@/lib/db';
 import type { Group, Student, Lesson, Attendance, Payment, DailyEvaluation } from '@/lib/types';
 import { formatMoney, scheduleText, formatArDate, arDayName, arMonthName } from '@/lib/helpers';
 import { SearchBar, EmptyState } from '@/components/ui-shared';
-import { Users, BookOpen, CalendarDays, Wallet, TrendingUp, Plus, UserMinus, ChevronLeft, FileDown, ScanLine, BarChart3, Trophy, Trash2 } from 'lucide-react';
+import { Users, BookOpen, CalendarDays, Wallet, TrendingUp, Plus, UserMinus, ChevronLeft, FileDown, ScanLine, BarChart3, Trophy, Trash2, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -171,6 +171,22 @@ export function GroupDetails() {
           className="py-3 rounded-2xl bg-gradient-to-br from-cyan-500 to-teal-700 text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md"
         >
           <ScanLine className="w-5 h-5" /> بدء حصة اليوم
+        </button>
+        {/* v7: Printable attendance sheet */}
+        <button
+          onClick={() => {
+            const printWin = window.open('', '_blank');
+            if (!printWin) return;
+            const rows = students.filter(s => s.status === 'active').map((s, i) =>
+              `<tr><td>${i+1}</td><td>${s.name}</td><td>${s.code}</td><td style="width:60px;height:30px;border:1px solid #999"></td><td style="width:60px;height:30px;border:1px solid #999"></td></tr>`
+            ).join('');
+            printWin.document.write(`<html dir="rtl"><head><title>ورقة حضور - ${group?.name}</title><style>body{font-family:sans-serif;padding:20px}h1{text-align:center}table{width:100%;border-collapse:collapse;margin-top:20px}td,th{border:1px solid #333;padding:8px;text-align:center}th{background:#1e3a8a;color:white}</style></head><body><h1>ورقة الحضور - ${group?.name}</h1><p>التاريخ: ${new Date().toLocaleDateString('ar-EG')}</p><table><tr><th>م</th><th>الاسم</th><th>الكود</th><th>حاضر</th><th>غائب</th></tr>${rows}</table></body></html>`);
+            printWin.document.close();
+            printWin.print();
+          }}
+          className="flex-1 py-3 rounded-2xl bg-gradient-to-br from-slate-500 to-slate-700 text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-md"
+        >
+          <Printer className="w-5 h-5" /> 📋 ورقة حضور للطباعة
         </button>
         <button
           onClick={() => setShowAdd(!showAdd)}

@@ -11,7 +11,7 @@ import { PackagesManager } from '@/components/PackagesManager';
 import { toast } from 'sonner';
 import {
   Phone, PhoneCall, Wallet, BookOpen, CalendarDays, FileText, QrCode,
-  TrendingUp, Trophy, AlertTriangle, MessageCircle, FileDown, Pencil, Archive, ChevronLeft, Receipt, CreditCard, BarChart3, History, Share2, Gift, Award, Clock, Eye, Trash2,
+  TrendingUp, Trophy, AlertTriangle, MessageCircle, FileDown, Pencil, Archive, ChevronLeft, Receipt, CreditCard, BarChart3, History, Share2, Gift, Award, Clock, Eye, Trash2, Copy,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -188,6 +188,143 @@ export function StudentProfile() {
     downloadBlob(blob, `daily-${student.code}-${lastLesson.date.split('T')[0]}.pdf`);
   }
 
+  // v7: Universal WhatsApp Share — sends any report/card/data via WhatsApp
+  async function shareViaWhatsApp(type: 'card_image' | 'card_pdf' | 'daily_report' | 'monthly_summary' | 'financial_status') {
+    if (!student) return;
+    toast.info('جاري التحضير...');
+
+    try {
+      if (type === 'card_image') {
+        // Send student card as PNG image
+        const { shareStudentCardViaWhatsApp } = await import('@/lib/documents');
+        await shareStudentCardViaWhatsApp(student, group, settings);
+        toast.success('تم إرسال البطاقة كصورة');
+        return;
+      }
+
+      if (type === 'card_pdf') {
+        // Generate card PDF then share via Web Share API or download + WhatsApp
+        const blob = await generateStudentCardsPDF([student], group ? [group] : [], settings);
+        const file = new File([blob], `بطاقة-${student.name}.pdf`, { type: 'application/pdf' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: 'بطاقة الطالب', text: `بطاقة هوية الطالب: ${student.name}`, files: [file] });
+          toast.success('تم الإرسال');
+        } else {
+          downloadBlob(blob, `بطاقة-${student.name}.pdf`);
+          const msg = `بطاقة هوية الطالب: ${student.name}\nالكود: ${student.code}\n${settings.teacherName}`;
+          window.open(whatsappLink(student.parentPhone, msg), '_blank');
+          toast.success('تم تحميل PDF وفتح واتساب');
+        }
+        return;
+      }
+
+      if (type === 'daily_report') {
+        // Send daily report as PDF via WhatsApp
+        const lastEval = evaluations[evaluations.length - 1];
+        const lastAtt = attendances[attendances.length - 1];
+        const lastLesson = lastEval ? lessons.find(l => l.id === lastEval.lessonId) : (lastAtt ? lessons.find(l => l.id === lastAtt.lessonId) : null);
+        if (!lastLesson) { toast.error('لا توجد حصص مسجلة'); return; }
+        const status = lastAtt?.status === 'absent' ? 'غائب' : lastAtt?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
+        const blob = await generateDailyReportPDF(student, lastLesson, group, lastEval || null, status, settings);
+        const file = new File([blob], `تقرير-${student.name}.pdf`, { type: 'application/pdf' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: 'تقرير حصة', text: `تقرير حصة الطالب: ${student.name}`, files: [file] });
+        } else {
+          downloadBlob(blob, `تقرير-${student.name}.pdf`);
+          const grade = lastEval ? GRADE_LABELS_AR[lastEval.gradeLabel] : status;
+          const msg = `📋 تقرير حصة الطالب: ${student.name}\n📅 التاريخ: ${formatArDate(lastLesson.date)}\n🏆 المجموع: ${lastEval?.totalScore || 0}/30\n📊 التقدير: ${grade}\n${settings.teacherName}`;
+          window.open(whatsappLink(student.parentPhone, msg), '_blank');
+        }
+        toast.success('تم إرسال التقرير');
+        return;
+      }
+
+      if (type === 'monthly_summary') {
+        // Send monthly summary as text via WhatsApp
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        const monthLessons = lessons.filter(l => { const d = new Date(l.date); return d.getMonth() + 1 === month && d.getFullYear() === year; });
+        const monthLessonIds = new Set(monthLessons.map(l => l.id));
+        const monthAtts = attendances.filter(a => monthLessonIds.has(a.lessonId));
+        const monthEvals = evaluations.filter(e => monthLessonIds.has(e.lessonId));
+        const present = monthAtts.filter(a => a.status === 'present').length;
+        const absent = monthAtts.filter(a => a.status === 'absent').length;
+        const avgTotal = monthEvals.length > 0 ? Math.round((monthEvals.reduce((s, e) => s + e.totalScore, 0) / monthEvals.length) * 10) / 10 : 0;
+        const grade = avgTotal >= 27 ? 'ممتاز' : avgTotal >= 22 ? 'جيد جداً' : avgTotal >= 15 ? 'جيد' : avgTotal >= 10 ? 'مقبول' : 'ضعيف';
+
+        const { computeStudentFinancialStatus } = await import('@/lib/helpers');
+        const db = getDB();
+        const allPayments = await db.payments.where('studentId').equals(student.id).toArray();
+        const fin = computeStudentFinancialStatus(student, allPayments, month, year);
+
+        const msg = `📘 تقرير شهري - ${settings.appName}
+
+👨‍👩‍👦 ولي أمر الطالب: ${student.name}
+📅 الشهر: ${arMonthName(month)} ${year}
+
+📚 عدد الحصص: ${monthLessons.length}
+✅ الحضور: ${present}
+❌ الغياب: ${absent}
+📈 المتوسط العام: ${avgTotal}/30
+🏅 التقدير: ${grade}
+
+💰 الحالة المالية:
+الاشتراك: ${student.monthlyFee} ج.م
+المدفوع: ${fin.totalPaidThisMonth} ج.م
+المتبقي: ${fin.remaining} ج.م
+الحالة: ${fin.statusAr}
+
+مع تحياتي 🙏
+${settings.teacherName}
+📞 ${settings.teacherPhone}`;
+
+        window.open(whatsappLink(student.parentPhone, msg), '_blank');
+        await db.messages.add({ id: crypto.randomUUID(), studentId: student.id, parentPhone: student.parentPhone, templateType: 'monthly_report', messageBody: msg, sentAt: new Date().toISOString(), status: 'sent' });
+        toast.success('تم إرسال التقرير الشهري');
+        return;
+      }
+
+      if (type === 'financial_status') {
+        // Send financial status as text via WhatsApp
+        const now = new Date();
+        const month = now.getMonth() + 1;
+        const year = now.getFullYear();
+        const { computeStudentFinancialStatus } = await import('@/lib/helpers');
+        const db = getDB();
+        const allPayments = await db.payments.where('studentId').equals(student.id).toArray();
+        const fin = computeStudentFinancialStatus(student, allPayments, month, year);
+        const totalPaidEver = allPayments.reduce((s, p) => s + p.amountPaid, 0);
+
+        const msg = `💰 الحالة المالية - ${settings.appName}
+
+👨‍👩‍👦 ولي أمر الطالب: ${student.name}
+📅 الشهر: ${arMonthName(month)} ${year}
+
+الاشتراك الشهري: ${student.monthlyFee} ج.م
+المدفوع هذا الشهر: ${fin.totalPaidThisMonth} ج.م
+المتبقي هذا الشهر: ${fin.remaining} ج.م
+حالة السداد: ${fin.statusAr}
+
+إجمالي المدفوع (كلي): ${totalPaidEver} ج.م
+المديونية الكلية: ${student.debt} ج.م
+عدد عمليات الدفع: ${fin.paymentCount}
+
+مع تحياتي 🙏
+${settings.teacherName}
+📞 ${settings.teacherPhone}`;
+
+        window.open(whatsappLink(student.parentPhone, msg), '_blank');
+        await db.messages.add({ id: crypto.randomUUID(), studentId: student.id, parentPhone: student.parentPhone, templateType: 'financial_status', messageBody: msg, sentAt: new Date().toISOString(), status: 'sent' });
+        toast.success('تم إرسال الحالة المالية');
+        return;
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error('فشل الإرسال');
+    }
+  }
+
   async function archive() {
     if (!student) return;
     const db = getDB();
@@ -270,6 +407,31 @@ export function StudentProfile() {
             { label: 'المديونية الحالية', value: formatMoney(student.debt) },
             { label: 'نظام الدفع', value: group?.paymentMode === 'start' ? 'أول الشهر' : group?.paymentMode === 'end' ? 'آخر الشهر' : '—' },
           ]} />
+
+          {/* v7: Universal WhatsApp Share — Send any report/card/data */}
+          <div className="rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4">
+            <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 mb-3">
+              <MessageCircle className="w-4 h-4 text-green-600" />
+              إرسال سريع عبر واتساب
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => shareViaWhatsApp('card_image')} className="py-2.5 rounded-xl bg-green-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+                🪪 بطاقة (صورة)
+              </button>
+              <button onClick={() => shareViaWhatsApp('card_pdf')} className="py-2.5 rounded-xl bg-violet-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+                📄 بطاقة (PDF)
+              </button>
+              <button onClick={() => shareViaWhatsApp('daily_report')} className="py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+                📋 تقرير حصة (PDF)
+              </button>
+              <button onClick={() => shareViaWhatsApp('monthly_summary')} className="py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1">
+                📘 تقرير شهري
+              </button>
+              <button onClick={() => shareViaWhatsApp('financial_status')} className="py-2.5 rounded-xl bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1 col-span-2">
+                💰 الحالة المالية الكاملة
+              </button>
+            </div>
+          </div>
 
           {/* Packages & Scholarships */}
           <PackagesManager student={student} onRefresh={async () => {
@@ -548,18 +710,44 @@ export function StudentProfile() {
 
       {/* Bottom actions */}
       <div className="fixed bottom-0 left-0 right-0 z-20 p-3 glass border-t border-slate-200 dark:border-slate-700 safe-bottom" style={{ maxWidth: '480px', margin: '0 auto' }}>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-2">
           <button
             onClick={downloadDailyReport}
             className="py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-bold flex items-center justify-center gap-1"
           >
-            <FileText className="w-4 h-4" /> تقرير اليوم
+            <FileText className="w-4 h-4" /> تقرير
           </button>
           <button
             onClick={() => sendTemplate('payment_reminder')}
             className="py-2.5 rounded-xl bg-amber-600 text-white text-xs font-bold flex items-center justify-center gap-1"
           >
-            <Wallet className="w-4 h-4" /> تذكير دفع
+            <Wallet className="w-4 h-4" /> تذكير
+          </button>
+          {/* v7: Clone student */}
+          <button
+            onClick={async () => {
+              if (!student) return;
+              const db = getDB();
+              const { generateUniqueStudentCode } = await import('@/lib/db');
+              const code = await generateUniqueStudentCode();
+              const now = new Date().toISOString();
+              const cloned: typeof student = {
+                ...student,
+                id: crypto.randomUUID(),
+                code,
+                name: student.name + ' (نسخة)',
+                debt: 0,
+                createdAt: now,
+                updatedAt: now,
+              };
+              await db.students.add(cloned);
+              await logActivity('clone_student', 'student', cloned.id, `نسخ من ${student.name}`);
+              toast.success(`تم نسخ الطالب - الكود الجديد: ${code}`);
+              navigate('student_profile', { id: cloned.id });
+            }}
+            className="py-2.5 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center justify-center gap-1"
+          >
+            <Copy className="w-4 h-4" /> نسخ
           </button>
           <button
             onClick={archive}

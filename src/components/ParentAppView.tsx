@@ -196,15 +196,61 @@ export function ParentAppView({ token }: { token: string }) {
           </Section>
         )}
 
-        {/* 7. Financial Status */}
-        <Section icon={<Wallet className="w-5 h-5" />} title="الحالة المالية" color="from-amber-600 to-yellow-700">
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <InfoRow label="الاشتراك الشهري" value={formatMoney(student.monthlyFee)} />
-            <InfoRow label="إجمالي المدفوع" value={formatMoney(totalPaid)} />
-            <InfoRow label="المديونية" value={formatMoney(student.debt)} color={student.debt > 0 ? 'text-red-600' : 'text-emerald-600'} />
-            <InfoRow label="آخر دفعة" value={lastPayment ? formatArDateShort(lastPayment.date) : '—'} />
-            <InfoRow label="موعد الدفعة القادمة" value={arMonthName(nextPaymentMonth)} />
-            <InfoRow label="حالة الاشتراك" value={student.debt > 0 ? 'متأخر' : 'مسدد'} color={student.debt > 0 ? 'text-red-600' : 'text-emerald-600'} />
+        {/* 7. Financial Status — v7 Enhanced with full details */}
+        <Section icon={<Wallet className="w-5 h-5" />} title="الحالة المالية التفصيلية" color="from-amber-600 to-yellow-700">
+          <div className="space-y-2">
+            {/* Main info */}
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <InfoRow label="الاشتراك الشهري" value={formatMoney(student.monthlyFee)} />
+              <InfoRow label="إجمالي المدفوع (كلي)" value={formatMoney(totalPaid)} />
+              <InfoRow label="المديونية الحالية" value={formatMoney(student.debt)} color={student.debt > 0 ? 'text-red-600' : 'text-emerald-600'} />
+              <InfoRow label="المتبقي هذا الشهر" value={formatMoney(Math.max(0, student.monthlyFee - (payments.filter(p => p.month === new Date().getMonth() + 1 && p.year === new Date().getFullYear()).reduce((s, p) => s + p.amount, 0))))} color="text-amber-600" />
+            </div>
+
+            {/* Last payment details */}
+            {lastPayment && (
+              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20">
+                <div className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mb-1">آخر دفعة</div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-600 dark:text-slate-300">التاريخ: {formatArDateShort(lastPayment.date)}</span>
+                  <span className="font-bold text-emerald-600">{formatMoney(lastPayment.amount)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-slate-500">الشهر: {arMonthName(lastPayment.month)} {lastPayment.year}</span>
+                  <span className="text-slate-500">{lastPayment.remaining > 0 ? `متبقي: ${formatMoney(lastPayment.remaining)}` : 'مسدد كامل ✅'}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Next payment */}
+            <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-600 dark:text-slate-300">موعد الدفعة القادمة:</span>
+                <span className="font-bold text-blue-600">{arMonthName(nextPaymentMonth)} {new Date().getFullYear()}</span>
+              </div>
+            </div>
+
+            {/* Overdue debt warning */}
+            {student.debt > 0 && (
+              <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/30">
+                <div className="flex items-center gap-2 mb-1">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <div className="text-xs font-bold text-red-700 dark:text-red-300">⚠️ متأخرات مالية</div>
+                </div>
+                <div className="text-xs text-slate-700 dark:text-slate-200">
+                  يوجد مديونية متأخرة بقيمة <strong className="text-red-600">{formatMoney(student.debt)}</strong>
+                  <br />
+                  يشمل ذلك متأخرات من شهور سابقة. يرجى تسويتها في أقرب فرصة.
+                </div>
+              </div>
+            )}
+
+            {/* Status badge */}
+            <div className="flex justify-center">
+              <span className={cn('px-4 py-1.5 rounded-full text-sm font-bold', student.debt > 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300')}>
+                {student.debt > 0 ? '🔔 متأخر في السداد' : '✅ مسدد بالكامل'}
+              </span>
+            </div>
           </div>
         </Section>
 

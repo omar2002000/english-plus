@@ -6,10 +6,12 @@ import { getDB } from '@/lib/db';
 import type { Student, Group } from '@/lib/types';
 import { StatCard, SectionHeader, QuickAction, EmptyState } from '@/components/ui-shared';
 import { SmartRecommendations } from '@/components/SmartRecommendations';
+import { UniversalSearch } from '@/components/UniversalSearch';
 import { formatMoney, formatArDate, arDayName, scheduleText, getGroupDays, computeFinancialSummary } from '@/lib/helpers';
 import {
   Users, UserCheck, UserX, Wallet, AlertTriangle, CalendarClock,
-  UserPlus, FolderPlus, ScanLine, BookOpen, TrendingUp, Trophy, AlertCircle, ChevronLeft, Zap
+  UserPlus, FolderPlus, ScanLine, BookOpen, TrendingUp, Trophy, AlertCircle, ChevronLeft, Zap,
+  Search, CheckSquare, Phone, CalendarDays
 } from 'lucide-react';
 
 interface DashboardData {
@@ -31,6 +33,7 @@ interface DashboardData {
 
 export function Dashboard() {
   const { navigate, settings, refreshKey } = useApp();
+  const [searchOpen, setSearchOpen] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -217,10 +220,31 @@ export function Dashboard() {
         <div className="grid grid-cols-4 gap-2">
           <QuickAction label="بدء الحضور" icon={<ScanLine className="w-6 h-6" />} color="bg-gradient-to-br from-orange-500 to-amber-600" onClick={() => navigate('scanner')} />
           <QuickAction label="حصة سريعة" icon={<Zap className="w-6 h-6" />} color="bg-gradient-to-br from-yellow-500 to-orange-600" onClick={() => navigate('today_class', { quick: '1' })} />
-          <QuickAction label="إضافة طالب" icon={<UserPlus className="w-6 h-6" />} color="bg-gradient-to-br from-violet-500 to-purple-700" onClick={() => navigate('add_student')} />
-          <QuickAction label="حصة اليوم" icon={<BookOpen className="w-6 h-6" />} color="bg-gradient-to-br from-cyan-500 to-teal-700" onClick={() => navigate('today_class')} />
+          <QuickAction label="بحث فوري" icon={<Search className="w-6 h-6" />} color="bg-gradient-to-br from-blue-500 to-cyan-600" onClick={() => setSearchOpen(true)} />
+          <QuickAction label="مهام اليوم" icon={<CheckSquare className="w-6 h-6" />} color="bg-gradient-to-br from-cyan-500 to-teal-700" onClick={() => navigate('todo')} />
+        </div>
+        {/* v7: Quick links to new screens */}
+        <div className="grid grid-cols-4 gap-2 mt-2">
+          <QuickAction label="تقويم" icon={<CalendarDays className="w-5 h-5" />} color="bg-gradient-to-br from-violet-500 to-purple-600" onClick={() => navigate('calendar')} />
+          <QuickAction label="الدخل" icon={<TrendingUp className="w-5 h-5" />} color="bg-gradient-to-br from-emerald-500 to-green-600" onClick={() => navigate('revenue_forecast')} />
+          <QuickAction label="سجل تواصل" icon={<Phone className="w-5 h-5" />} color="bg-gradient-to-br from-blue-500 to-indigo-600" onClick={() => navigate('contact_log')} />
+          <QuickAction label="حصة اليوم" icon={<BookOpen className="w-5 h-5" />} color="bg-gradient-to-br from-cyan-500 to-teal-700" onClick={() => navigate('today_class')} />
         </div>
       </div>
+
+      {/* v7: Monthly payment reminder */}
+      {data.latePayers.length > 0 && new Date().getDate() <= 5 && (
+        <div className="rounded-2xl bg-gradient-to-l from-red-500 to-rose-600 p-4 text-white shadow-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-5 h-5" />
+            <div className="font-bold">تذكير الدفع التلقائي</div>
+          </div>
+          <p className="text-sm opacity-90 mb-3">لديك {data.latePayers.length} طالب لم يسددوا هذا الشهر. هل تريد إرسال تذكير واتساب للكل؟</p>
+          <button onClick={() => navigate('subscriptions')} className="w-full py-2 rounded-xl bg-white/20 hover:bg-white/30 text-sm font-bold">
+            إرسال تذكير للكل
+          </button>
+        </div>
+      )}
 
       {data.upcomingLessons.length > 0 && (
         <div>
@@ -402,6 +426,7 @@ export function Dashboard() {
           }
         />
       )}
+      <UniversalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

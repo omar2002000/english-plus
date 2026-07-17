@@ -55,6 +55,7 @@ export function TodayClassScreen() {
   const [pinDialog, setPinDialog] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [focusMode, setFocusMode] = useState(false); // v6: Focus Mode
+  const [lessonTimer, setLessonTimer] = useState(0); // v7: Lesson Timer
 
   // Load groups
   useEffect(() => {
@@ -98,6 +99,8 @@ export function TodayClassScreen() {
         await db.lessons.add(dateLesson);
       }
       setLesson(dateLesson);
+      // v7: Start lesson timer
+      setLessonTimer(0);
       const [sts, allSts, atts, evs] = await Promise.all([
         db.students.where('groupId').equals(selectedGroupId).toArray(),
         db.students.toArray(),
@@ -200,6 +203,18 @@ export function TodayClassScreen() {
     toast.success(`حضر: ${student.name}`);
     setPinInput(''); setPinDialog(false);
   }
+
+  // v7: Lesson timer tick
+  useEffect(() => {
+    if (!selectedGroupId || isLocked) return;
+    const interval = setInterval(() => {
+      setLessonTimer(prev => prev + 1);
+    }, 60000); // every minute
+    return () => clearInterval(interval);
+  }, [selectedGroupId, isLocked]);
+
+  // Format timer
+  const timerDisplay = `${Math.floor(lessonTimer / 60)}:${String(lessonTimer % 60).padStart(2, '0')}`;
 
   // Filter + sort
   const activeStudents = useMemo(() => {
@@ -584,6 +599,8 @@ ${settings.teacherName}
           {isLocked && <span className="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-bold flex items-center gap-1"><Lock className="w-3 h-3" /> مقفلة</span>}
           {isClosed && <span className="px-3 py-1 rounded-full bg-slate-500 text-white text-xs font-bold flex items-center gap-1"><FolderX className="w-3 h-3" /> مطوية</span>}
           {!isLocked && !isClosed && <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center gap-1"><Unlock className="w-3 h-3" /> مفتوحة</span>}
+          {/* v7: Lesson Timer */}
+          {!isLocked && !isClosed && <span className="px-3 py-1 rounded-full bg-cyan-600 text-white text-xs font-bold flex items-center gap-1"><Clock className="w-3 h-3" /> {timerDisplay}</span>}
         </div>
       </div>
       )}

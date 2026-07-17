@@ -6,7 +6,7 @@ import { getDB } from '@/lib/db';
 import type { Student, Group } from '@/lib/types';
 import { SearchBar, EmptyState, StatusPill } from '@/components/ui-shared';
 import { formatMoney } from '@/lib/helpers';
-import { Users, UserPlus, Archive, ChevronLeft, Filter, Upload, FileDown, MoreVertical, Pencil, Trash2, Archive as ArchiveIcon, FileText, QrCode } from 'lucide-react';
+import { Users, UserPlus, Archive, ChevronLeft, Filter, Upload, FileDown, MoreVertical, Pencil, Trash2, Archive as ArchiveIcon, FileText, QrCode, ClipboardPaste } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
@@ -161,14 +161,37 @@ export function StudentsScreen() {
         <div className="flex-1">
           <SearchBar value={search} onChange={setSearch} placeholder="بحث بالاسم / الكود / الهاتف" />
         </div>
+        <button
+          onClick={async () => {
+            const text = prompt('الصق قائمة الأسماء (اسم واحد في كل سطر):');
+            if (!text) return;
+            const names = text.split('\n').map(n => n.trim()).filter(n => n);
+            if (names.length === 0) return;
+            const db = getDB();
+            const now = new Date().toISOString();
+            let added = 0;
+            for (const name of names) {
+              const code = await generateUniqueStudentCode();
+              await db.students.add({
+                id: crypto.randomUUID(), code, name, phone: '', parentPhone: '',
+                grade: 'غير محدد', subject: 'اللغة الإنجليزية', academicYear: '2025/2026',
+                semester: settings.semesterDefault, groupId: null, joinDate: now,
+                monthlyFee: settings.defaultMonthlyFee, debt: 0, status: 'active',
+                createdAt: now, updatedAt: now,
+              });
+              added++;
+            }
+            toast.success(`تم إضافة ${added} طالب`);
+            triggerRefresh();
+          }}
+          className="w-10 h-10 rounded-xl bg-cyan-100 dark:bg-cyan-900/30 flex items-center justify-center text-cyan-600 hover:bg-cyan-200 transition-colors"
+          title="لصق أسماء"
+        >
+          <ClipboardPaste className="w-5 h-5" />
+        </button>
         <label className="w-10 h-10 rounded-xl bg-violet-100 dark:bg-violet-900/30 flex items-center justify-center text-violet-600 cursor-pointer hover:bg-violet-200 transition-colors">
           <Upload className="w-5 h-5" />
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportExcel(f); e.currentTarget.value = ''; }}
-          />
+          <input type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportExcel(f); e.currentTarget.value = ''; }} />
         </label>
         <button
           onClick={exportExcel}
