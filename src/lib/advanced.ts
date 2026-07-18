@@ -103,7 +103,7 @@ export async function applyPackage(studentId: string, type: PackageType, discoun
   const db = getDB();
   const info = PACKAGE_INFO[type];
   const pkg: Package = {
-    id: crypto.randomUUID(),
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
     type,
     studentId,
     discountPercent: discountPercent ?? info.defaultPercent,
@@ -187,7 +187,7 @@ export async function checkUpcomingLessonsAndNotify(settings: Settings): Promise
       );
       // Save notification
       await db.notifications.add({
-        id: crypto.randomUUID(),
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
         type: 'lesson_reminder',
         title: `حصة ${g.name} قريبة`,
         body: `الحصة بعد ${Math.round(diffMin)} دقيقة - ${studentCount} طالب`,
@@ -203,7 +203,7 @@ export async function checkUpcomingLessonsAndNotify(settings: Settings): Promise
         const students = (await db.students.where('groupId').equals(g.id).toArray()).filter(s => s.status === 'active');
         // We just count - actual sending requires user action
         await db.notifications.add({
-          id: crypto.randomUUID(),
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
           type: 'lesson_reminder',
           title: `تذكير أولياء الأمور - ${g.name}`,
           body: `${students.length} رسالة تذكير جاهزة للإرسال لأولياء الأمور`,
@@ -384,7 +384,7 @@ export async function recordPinAttempt(success: boolean): Promise<{ locked: bool
       failedCount = lastAttempt.failedCount;
       // Record attempt (still locked)
       await db.pinAttempts.add({
-        id: crypto.randomUUID(),
+        id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
         timestamp: now.toISOString(),
         success: false,
         failedCount,
@@ -403,7 +403,7 @@ export async function recordPinAttempt(success: boolean): Promise<{ locked: bool
   if (success) {
     failedCount = 0;
     await db.pinAttempts.add({
-      id: crypto.randomUUID(),
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
       timestamp: now.toISOString(),
       success: true,
       failedCount: 0,
@@ -418,7 +418,7 @@ export async function recordPinAttempt(success: boolean): Promise<{ locked: bool
   if (failedCount >= MAX_FAILED_ATTEMPTS) {
     lockedUntil = new Date(now.getTime() + LOCKOUT_DURATION_MIN * 60000);
     await db.pinAttempts.add({
-      id: crypto.randomUUID(),
+      id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
       timestamp: now.toISOString(),
       success: false,
       failedCount,
@@ -428,7 +428,7 @@ export async function recordPinAttempt(success: boolean): Promise<{ locked: bool
   }
 
   await db.pinAttempts.add({
-    id: crypto.randomUUID(),
+    id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36),
     timestamp: now.toISOString(),
     success: false,
     failedCount,

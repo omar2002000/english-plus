@@ -142,9 +142,10 @@ export async function seedDemoData() {
   if (count > 0) return; // already seeded
 
   const now = new Date().toISOString();
+  const uid = () => (typeof crypto !== 'undefined' && crypto.randomUUID) ? uid() : Math.random().toString(36).slice(2) + Date.now().toString(36);
   const groups: Group[] = [
     {
-      id: crypto.randomUUID(),
+      id: uid(),
       code: 'G001',
       name: 'مجموعة الصف الأول الثانوي',
       grade: 'الأول الثانوي',
@@ -156,8 +157,8 @@ export async function seedDemoData() {
       scheduleMinute: 0,
       schedulePeriod: 'pm',
       schedules: [
-        { id: crypto.randomUUID(), day: 'السبت', hour: 4, minute: 0, period: 'pm' as const },
-        { id: crypto.randomUUID(), day: 'الثلاثاء', hour: 4, minute: 0, period: 'pm' as const },
+        { id: uid(), day: 'السبت', hour: 4, minute: 0, period: 'pm' as const },
+        { id: uid(), day: 'الثلاثاء', hour: 4, minute: 0, period: 'pm' as const },
       ],
       paymentMode: 'end',
       startDate: now,
@@ -169,7 +170,7 @@ export async function seedDemoData() {
       updatedAt: now,
     },
     {
-      id: crypto.randomUUID(),
+      id: uid(),
       code: 'G002',
       name: 'مجموعة الصف الثاني الثانوي',
       grade: 'الثاني الثانوي',
@@ -181,8 +182,8 @@ export async function seedDemoData() {
       scheduleMinute: 30,
       schedulePeriod: 'pm',
       schedules: [
-        { id: crypto.randomUUID(), day: 'الأحد', hour: 5, minute: 30, period: 'pm' as const },
-        { id: crypto.randomUUID(), day: 'الأربعاء', hour: 5, minute: 30, period: 'pm' as const },
+        { id: uid(), day: 'الأحد', hour: 5, minute: 30, period: 'pm' as const },
+        { id: uid(), day: 'الأربعاء', hour: 5, minute: 30, period: 'pm' as const },
       ],
       paymentMode: 'start',
       startDate: now,
@@ -194,7 +195,7 @@ export async function seedDemoData() {
       updatedAt: now,
     },
     {
-      id: crypto.randomUUID(),
+      id: uid(),
       code: 'G003',
       name: 'مجموعة الصف الثالث الإعدادي',
       grade: 'الثالث الإعدادي',
@@ -206,7 +207,7 @@ export async function seedDemoData() {
       scheduleMinute: 0,
       schedulePeriod: 'pm',
       schedules: [
-        { id: crypto.randomUUID(), day: 'الاثنين', hour: 6, minute: 0, period: 'pm' as const },
+        { id: uid(), day: 'الاثنين', hour: 6, minute: 0, period: 'pm' as const },
       ],
       paymentMode: 'end',
       startDate: now,
@@ -235,7 +236,7 @@ export async function seedDemoData() {
     const code = await generateUniqueStudentCode();
     const student: Student = {
       ...s,
-      id: crypto.randomUUID(),
+      id: uid(),
       code,
       createdAt: now,
       updatedAt: now,
@@ -317,7 +318,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export function loadSettings(): Settings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
+    const raw = window.localStorage?.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw);
     return { ...DEFAULT_SETTINGS, ...parsed, colors: { ...DEFAULT_SETTINGS.colors, ...(parsed.colors || {}) } };
@@ -328,7 +329,11 @@ export function loadSettings(): Settings {
 
 export function saveSettings(s: Settings) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  try {
+    window.localStorage?.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch (e) {
+    console.warn('saveSettings failed', e);
+  }
 }
 
 // ===== Backup / Restore =====
