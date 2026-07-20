@@ -9,7 +9,6 @@ import { SearchBar, EmptyState } from '@/components/ui-shared';
 import { ScanLine, Save, BookOpen, ChevronLeft, Filter, ArrowUpDown, MessageCircle, FileDown, Send, Check, AlertCircle, Lock, Unlock, X, Users, CalendarDays, Clock, TrendingUp, Award, FileText, ChevronDown, UserPlus, UserMinus, CheckSquare, Square, FolderX, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { generateDailyReportPDF, downloadBlob } from '@/lib/documents';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -56,6 +55,11 @@ export function TodayClassScreen() {
   const [pinInput, setPinInput] = useState('');
   const [focusMode, setFocusMode] = useState(false); // v6: Focus Mode
   const [lessonTimer, setLessonTimer] = useState(0); // v7: Lesson Timer
+
+  // Derived state (declared early so any useEffect / handler can use them safely)
+  const selectedGroup = groups.find(g => g.id === selectedGroupId);
+  const isLocked = lesson?.status === 'locked';
+  const isClosed = lesson?.status === 'closed';
 
   // Load groups
   useEffect(() => {
@@ -444,6 +448,7 @@ ${settings.teacherName}
     const att = getAttendance(student.id);
     const status = att?.status === 'absent' ? 'غائب' : att?.status === 'excused' ? 'غياب بعذر' : 'حاضر';
     const group = groups.find(g => g.id === selectedGroupId) || null;
+    const { generateDailyReportPDF, downloadBlob } = await import('@/lib/documents');
     const blob = await generateDailyReportPDF(student, lesson, group, ev || null, status, settings);
     downloadBlob(blob, `daily-${student.code}.pdf`);
   }
@@ -465,10 +470,6 @@ ${settings.teacherName}
       return next;
     });
   }
-
-  const selectedGroup = groups.find(g => g.id === selectedGroupId);
-  const isLocked = lesson?.status === 'locked';
-  const isClosed = lesson?.status === 'closed';
 
   // ===== RENDER =====
   if (groups.length === 0) {
